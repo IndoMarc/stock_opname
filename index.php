@@ -363,7 +363,10 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             document.getElementById('shelfEnd').innerHTML = '<option value="">Pilih...</option>';
             
             populateFilters();
-            checkFilter();
+            
+            localStorage.setItem('so_full_data', JSON.stringify(fullData));
+            
+            loadSavedFilter();
         }
 
         function handleOfflineJson(input) {
@@ -424,7 +427,31 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             document.getElementById('btn2').disabled = document.getElementById('btn3').disabled = document.getElementById('btn4').disabled = !isSelected;
         }
 
-        function confirmFilter() { switchTab(2); }
+        function confirmFilter() { 
+            const rak = document.getElementById('rakSelect').value;
+            const start = document.getElementById('shelfStart').value;
+            const end = document.getElementById('shelfEnd').value;
+            
+            localStorage.setItem('so_rak', rak);
+            localStorage.setItem('so_shelf_start', start);
+            localStorage.setItem('so_shelf_end', end);
+            
+            switchTab(2); 
+        }
+
+        function loadSavedFilter() {
+            const savedRak = localStorage.getItem('so_rak');
+            const savedStart = localStorage.getItem('so_shelf_start');
+            const savedEnd = localStorage.getItem('so_shelf_end');
+            
+            if (savedRak) {
+                document.getElementById('rakSelect').value = savedRak;
+                document.getElementById('shelfStart').value = savedStart || "";
+                document.getElementById('shelfEnd').value = savedEnd || "";
+                checkFilter();
+                switchTab(2);
+            }
+        }
 
         function getFilteredData() {
             const rak = document.getElementById('rakSelect').value;
@@ -683,6 +710,9 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     
                     if (result.success) {
                         dataInputan.clear();
+                        localStorage.removeItem('so_rak');
+                        localStorage.removeItem('so_shelf_start');
+                        localStorage.removeItem('so_shelf_end');
                         document.getElementById('hasilProses').innerHTML = "";
                         alert("Semua progres inputan Anda berhasil direset!");
                         switchTab(1);
@@ -694,6 +724,21 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 }
             }
         }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedOfflineData = localStorage.getItem('so_full_data');
+            if (savedOfflineData) {
+                const parsed = JSON.parse(savedOfflineData);
+                fullData = parsed;
+                populateFilters();
+                
+                const statusData = document.getElementById('statusData');
+                statusData.innerText = `Menggunakan data tersimpan (${fullData.length} item loaded)`;
+                statusData.style.color = "var(--success)";
+                
+                loadSavedFilter();
+            }
+        });
     </script>
 </body>
 </html>
