@@ -323,10 +323,6 @@ if (!$isAdmin) {
                     <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
                     Hitung Selisih SO
                 </button>
-                <button class="tab-btn" id="btn5" onclick="switchTab(5)">
-                    <svg viewBox="0 0 24 24"><path d="M4 15h16v-2H4v2zm0 4h16v-2H4v2zm0-8h16V9H4v2zm0-6v2h16V5H4z"/></svg>
-                    Hasil SO Per NIK
-                </button>
             <?php endif; ?>
         </div>
         
@@ -410,20 +406,11 @@ if (!$isAdmin) {
             <div id="tab4" class="tab-content">
                 <div class="filter-section" style="display: flex; gap: 5px;">
                     <button class="btn-cari" onclick="calculateSelisih()">Proses</button>
-                    <button class="btn-cari" style="background-color: #27ae60;" onclick="copyAllResults()">Salin Hasil</button>
-                    <button class="btn-cari" style="background-color: #e67e22;" onclick="uploadResultsToDb()">Upload Hasil</button>
-                    <button class="btn-cari" style="background-color: var(--danger);" onclick="resetUserProgress()">Reset Hasil</button>
+                    <button class="btn-cari" style="background-color: #27ae60;" onclick="copyAllResults()">Salin</button>
+                    <button class="btn-cari" style="background-color: #e67e22;" onclick="uploadResultsToDb()">Upload</button>
+                    <button class="btn-cari" style="background-color: var(--danger);" onclick="resetUserProgress()">Reset</button>
                 </div>
                 <div id="hasilProses"></div>
-            </div>
-
-            <div id="tab5" class="tab-content">
-                <div class="filter-section">
-                    <label for="dbUserFilter" style="font-weight: bold; color: var(--primary);">Pilih NIK :</label>
-                    <select id="dbUserFilter" onchange="renderFilteredDbTable()"></select>
-                    <button class="btn-cari" style="background-color: var(--accent); margin-top: 5px;" onclick="loadDatabaseResults()">Refresh Database</button>
-                </div>
-                <div id="dbHasilContainer"></div>
             </div>
         <?php endif; ?>
     </div>
@@ -548,7 +535,6 @@ if (!$isAdmin) {
             });
             
             if(!isAdmin && idx === 2) renderTable();
-            if(!isAdmin && idx === 5) loadDatabaseResults();
             if(isAdmin && idx === 6) loadAdminStokFisik();
             if(isAdmin && idx === 7) loadAdminHasilSelisih();
             
@@ -716,7 +702,7 @@ if (!$isAdmin) {
         function openQueryPopup(plumd, desc, type) {
             currentQueryPlumd = plumd;
             currentQueryType = type;
-            document.getElementById('queryPopText').innerText = "Query Sales : " + desc;
+            document.getElementById('queryPopText').innerText = "Produk : " + desc;
             document.getElementById('querySalesInput').value = "";
             const qpop = document.getElementById('queryPopup');
             qpop.style.display = 'block';
@@ -941,88 +927,6 @@ if (!$isAdmin) {
                 loader.style.display = 'none';
                 alert("Terjadi kesalahan jaringan saat mengupload data.");
             }
-        }
-
-        async function loadDatabaseResults() {
-            const container = document.getElementById('dbHasilContainer');
-            const selectFilter = document.getElementById('dbUserFilter');
-            container.innerHTML = "";
-            const loader = document.getElementById('loader');
-            loader.style.display = 'block';
-
-            try {
-                const formData = new FormData();
-                formData.append('action', 'get_database_results');
-
-                const response = await fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                loader.style.display = 'none';
-
-                if (result.success && result.data.length > 0) {
-                    databaseRowsGlobal = result.data;
-                    
-                    let users = [...new Set(databaseRowsGlobal.map(item => item.username))].sort();
-                    
-                    selectFilter.innerHTML = "";
-                    users.forEach(u => {
-                        selectFilter.innerHTML += `<option value="${u}">${u}</option>`;
-                    });
-                    
-                    renderFilteredDbTable();
-                } else {
-                    selectFilter.innerHTML = "<option value=''>-- Kosong --</option>";
-                    container.innerHTML = "<div class='status-info'>Tidak ada data di database hasil_selisih_so.</div>";
-                }
-            } catch (e) {
-                loader.style.display = 'none';
-                alert("Terjadi kesalahan saat memuat data dari database.");
-            }
-        }
-
-        function renderFilteredDbTable() {
-            const container = document.getElementById('dbHasilContainer');
-            const selectedUser = document.getElementById('dbUserFilter').value;
-            container.innerHTML = "";
-            
-            if (!selectedUser) return;
-            
-            const filteredRows = databaseRowsGlobal.filter(item => item.username === selectedUser);
-            
-            if (filteredRows.length === 0) {
-                container.innerHTML = "<div class='status-info'>Tidak ada data untuk pengguna ini.</div>";
-                return;
-            }
-            
-            let tableHtml = `<div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Modis</th>
-                            <th>PLU</th>
-                            <th>Deskripsi</th>
-                            <th>Harga</th>
-                            <th>Selisih</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
-            
-            filteredRows.forEach(i => {
-                let formattedSelisih = i.selisih > 0 ? `+${i.selisih}` : i.selisih;
-                let colorStyle = i.selisih > 0 ? 'color:green; font-weight:bold;' : 'color:red; font-weight:bold;';
-                tableHtml += `<tr>
-                    <td>${i.modis}</td>
-                    <td>${i.plumd}</td>
-                    <td>${i.deskripsi}</td>
-                    <td>${parseInt(i.harga).toLocaleString('id-ID')}</td>
-                    <td style="${colorStyle}">${formattedSelisih}</td>
-                </tr>`;
-            });
-
-            tableHtml += `</tbody></table></div>`;
-            container.innerHTML = tableHtml;
         }
 
         async function loadAdminStokFisik() {
