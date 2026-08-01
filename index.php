@@ -59,7 +59,7 @@ if (!isset($_SESSION['username'])) {
         </form>
     </div>
 
-    <div class="login-footer">~ Stock Opname Via HP By M.H.R ~</div>
+    <div class="login-footer">~ m.h.r ~</div>
 </body>
 </html>
 <?php
@@ -194,6 +194,10 @@ if (!$isAdmin) {
         .header-title-container { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
         .main-header h2 { margin: 0; font-size: 16px; color: var(--primary); font-weight: bold; letter-spacing: 0.5px; }
         
+        .btn-header-external { display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--primary); padding: 5px; border-radius: 4px; transition: background 0.2s, color 0.2s; cursor: pointer; text-decoration: none; }
+        .btn-header-external:hover { background: #f0f0f0; color: var(--accent); }
+        .btn-header-external svg { width: 20px; height: 20px; fill: currentColor; }
+        
         .sidebar { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1e2b37; z-index: 1000; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; }
         .sidebar.open { left: 0; }
         .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; display: none; backdrop-filter: blur(2px); }
@@ -217,8 +221,9 @@ if (!$isAdmin) {
         .sidebar-footer { padding: 15px; border-top: 1px solid rgba(255,255,255,0.08); background: #17212a; text-align: center; }
         .sidebar-time { font-size: 12px; color: #a0aec0; font-weight: 500; line-height: 1.4; }
         
-        .btn-header-logout { background: var(--danger); color: white; text-decoration: none; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 11px; transition: background 0.2s; }
-        .btn-header-logout:hover { background: #c0392b; }
+        .btn-sidebar-logout { display: flex; align-items: center; justify-content: center; gap: 8px; width: 90%; margin: 0 auto 12px auto; padding: 10px 15px; background: var(--danger); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; transition: background 0.2s; box-sizing: border-box; }
+        .btn-sidebar-logout:hover { background: #c0392b; }
+        .btn-sidebar-logout svg { width: 16px; height: 16px; fill: currentColor; }
         
         .content-container { padding: 15px; flex: 1; }
         
@@ -241,6 +246,13 @@ if (!$isAdmin) {
         .btn-download { background-color: var(--primary); width: 100%; margin-bottom: 12px; }
         .btn-upload { background-color: var(--success); width: 100%; }
         
+        /* Style Tambahan Keterangan Item Terakhir */
+        .last-item-box { background: #eef7ed; border: 1px solid #c3e6cb; border-radius: 10px; padding: 12px 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .last-item-title { font-size: 11px; font-weight: bold; color: #27ae60; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+        .last-item-desc { font-size: 14px; font-weight: bold; color: var(--primary); margin-bottom: 2px; word-break: break-word; }
+        .last-item-detail { font-size: 12px; color: #555; display: flex; justify-content: space-between; align-items: center; }
+        .last-item-stok { font-weight: bold; color: #27ae60; background: #d4edda; padding: 2px 8px; border-radius: 4px; font-size: 13px; }
+
         #popup { display: none; position: fixed; top: 25%; left: 50%; transform: translate(-50%, -20px) scale(0.9); opacity: 0; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10000; width: 85%; max-width: 400px; transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
         #popup.show { display: block; }
         #popup.pop-in { opacity: 1; transform: translate(-50%, 0) scale(1); }
@@ -276,7 +288,9 @@ if (!$isAdmin) {
         <div class="header-title-container">
             <h2>SO VIA HP</h2>
         </div>
-        <a href="?logout=true" class="btn-header-logout">Logout</a>
+        <a href="https://indomaret.wasmer.app/" class="btn-header-external" title="Buka Link">
+            <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+        </a>
     </header>
 
     <div id="sidebar" class="sidebar">
@@ -327,6 +341,10 @@ if (!$isAdmin) {
         </div>
         
         <div class="sidebar-footer">
+            <a href="?logout=true" class="btn-sidebar-logout">
+                <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                Logout
+            </a>
             <div id="sidebarTime" class="sidebar-time"></div>
         </div>
     </div>
@@ -388,6 +406,19 @@ if (!$isAdmin) {
             </div>
 
             <div id="tab3" class="tab-content">
+                <!-- Keterangan Item Terakhir di-Input -->
+                <div id="lastInputContainer" class="last-item-box" style="display: none;">
+                    <div class="last-item-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        Item Terakhir Yg Di Input
+                    </div>
+                    <div id="lastItemDesc" class="last-item-desc">-</div>
+                    <div class="last-item-detail">
+                        <span>PLU : <b id="lastItemPlu">-</b></span>
+                        <span>Qty Input : <span id="lastItemStok" class="last-item-stok">0</span></span>
+                    </div>
+                </div>
+
                 <div class="filter-section">
                     <div style="display: flex; gap: 5px; margin-bottom: 10px;">
                         <input type="text" id="searchInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Ketik PLU atau Barcode" style="margin-bottom: 0;">
@@ -416,7 +447,7 @@ if (!$isAdmin) {
     </div>
 
     <footer class="main-footer">
-        <div class="footer-text">~ &copy; m.h.r ~</div>
+        <div class="footer-text">~ m.h.r ~</div>
     </footer>
 
     <div id="popup">
@@ -535,6 +566,7 @@ if (!$isAdmin) {
             });
             
             if(!isAdmin && idx === 2) renderTable();
+            if(!isAdmin && idx === 3) checkLastInputDisplay();
             if(isAdmin && idx === 6) loadAdminStokFisik();
             if(isAdmin && idx === 7) loadAdminHasilSelisih();
             
@@ -746,6 +778,32 @@ if (!$isAdmin) {
             } catch (e) {}
         }
 
+        function updateLastInputDisplay(item, totalStok) {
+            const lastData = {
+                desc: item.DESC2,
+                plumd: item.PLUMD,
+                stok: totalStok
+            };
+            localStorage.setItem('so_last_input', JSON.stringify(lastData));
+            checkLastInputDisplay();
+        }
+
+        function checkLastInputDisplay() {
+            const container = document.getElementById('lastInputContainer');
+            const savedLast = localStorage.getItem('so_last_input');
+            if (savedLast) {
+                try {
+                    const parsed = JSON.parse(savedLast);
+                    document.getElementById('lastItemDesc').innerText = parsed.desc;
+                    document.getElementById('lastItemPlu').innerText = parsed.plumd;
+                    document.getElementById('lastItemStok').innerText = parsed.stok;
+                    container.style.display = 'block';
+                } catch(e) {}
+            } else {
+                container.style.display = 'none';
+            }
+        }
+
         async function simpanStok() { 
             let val = parseInt(document.getElementById('stokInput').value) || 0;
             let currentStok = parseInt(dataInputan.get(window.currentItem.PLUMD)) || 0;
@@ -753,6 +811,7 @@ if (!$isAdmin) {
             
             dataInputan.set(window.currentItem.PLUMD, totalStok); 
             await updateDbStok(window.currentItem.PLUMD, totalStok);
+            updateLastInputDisplay(window.currentItem, totalStok);
             resetForm();
         }
 
@@ -763,6 +822,7 @@ if (!$isAdmin) {
             
             dataInputan.set(window.currentItem.PLUMD, totalStok);
             await updateDbStok(window.currentItem.PLUMD, totalStok);
+            updateLastInputDisplay(window.currentItem, totalStok);
             resetForm();
         }
 
@@ -1087,6 +1147,8 @@ if (!$isAdmin) {
                         localStorage.removeItem('so_rak');
                         localStorage.removeItem('so_shelf_start');
                         localStorage.removeItem('so_shelf_end');
+                        localStorage.removeItem('so_last_input');
+                        checkLastInputDisplay();
                         document.getElementById('hasilProses').innerHTML = "";
                         alert("Semua progres inputan Anda berhasil direset!");
                         switchTab(1);
