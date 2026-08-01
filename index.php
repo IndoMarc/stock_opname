@@ -79,8 +79,10 @@ $dbuser = 'user_a2e7c23a';
 $dbpass = 'pw_XVc32h58LGUKszLr1XCGg8R8FVDzTAcy';
 
 try {
-    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4", $dbuser, $dbpass);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo = new PDO("mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4", $dbuser, $dbpass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_TIMEOUT => 5
+    ]);
 } catch (PDOException $e) {
     die("Koneksi gagal: " . $e->getMessage());
 }
@@ -109,8 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 
     if ($_POST['action'] === 'upload_hasil_selisih' && !$isAdmin) {
-        $items = isset($_POST['items']) ? json_encode($_POST['items']) : '[]';
-        $itemsArray = json_decode($items, true);
+        $itemsRaw = $_POST['items'] ?? '[]';
+        $itemsArray = json_decode($itemsRaw, true);
         
         if (is_array($itemsArray) && count($itemsArray) > 0) {
             $pdo->beginTransaction();
@@ -965,14 +967,7 @@ if (!$isAdmin) {
             try {
                 const formData = new FormData();
                 formData.append('action', 'upload_hasil_selisih');
-                
-                itemsToUpload.forEach((item, index) => {
-                    formData.append(`items[${index}][modis]`, item.modis);
-                    formData.append(`items[${index}][plumd]`, item.plumd);
-                    formData.append(`items[${index}][deskripsi]`, item.deskripsi);
-                    formData.append(`items[${index}][harga]`, item.harga);
-                    formData.append(`items[${index}][selisih]`, item.selisih);
-                });
+                formData.append('items', JSON.stringify(itemsToUpload));
 
                 const response = await fetch(window.location.href, {
                     method: 'POST',
