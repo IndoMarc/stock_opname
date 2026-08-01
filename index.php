@@ -2,12 +2,12 @@
 session_start();
 
 $accounts = [
-    '2015301982',
-    '2015079695',
-    '2015554462',
-    '2015542055',
-    '2015653663',
-    'admin'
+    'admin',
+    'CIF',
+    'SSL',
+    'SJL',
+    'SCB',
+    'SCG'
 ];
 
 if (isset($_GET['logout'])) {
@@ -16,7 +16,7 @@ if (isset($_GET['logout'])) {
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username'])) {
     $user = $_POST['username'];
     
     if (in_array($user, $accounts)) {
@@ -35,14 +35,17 @@ if (!isset($_SESSION['username'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Stock Opname</title>
+    <title>Akun SO</title>
     <style>
         body { font-family: sans-serif; background-color: #f8f9fa; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .login-logo { width: 180px; height: auto; margin-bottom: 15px; }
-        .login-box { background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 300px; text-align: center; box-sizing: border-box; }
-        .login-box h3 { margin-top: 0; color: #2c3e50; }
-        .login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
-        .login-box button { width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 16px; }
+        .login-box { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 320px; text-align: center; box-sizing: border-box; }
+        .login-box h3 { margin-top: 0; color: #2c3e50; margin-bottom: 20px; font-size: 18px; }
+        .account-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .btn-account { padding: 14px 10px; background: #ffffff; color: #2c3e50; border: 2px solid #e0e6ed; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .btn-account:hover { background: #3498db; color: white; border-color: #3498db; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(52, 152, 219, 0.25); }
+        .btn-account.admin { background: #fdf2f2; color: #e74c3c; border-color: #f8d7da; }
+        .btn-account.admin:hover { background: #e74c3c; color: white; border-color: #e74c3c; box-shadow: 0 4px 8px rgba(231, 76, 60, 0.25); }
         .error { color: #e74c3c; font-size: 14px; margin-bottom: 10px; }
         .login-footer { margin-top: 15px; font-size: 13px; color: #7f8c8d; font-weight: 500; }
     </style>
@@ -51,11 +54,14 @@ if (!isset($_SESSION['username'])) {
     <img src="indomaret.PNG" alt="Logo Indomaret" class="login-logo">
     
     <div class="login-box">
-        <h3>Login Stock Opname</h3>
+        <h3>Pilih Akun Stock Opname</h3>
         <?php if(isset($login_error)) echo "<div class='error'>$login_error</div>"; ?>
-        <form method="POST">
-            <input type="text" name="username" placeholder="Masukan nomor NIK" required>
-            <button type="submit" name="login">LOGIN</button>
+        <form method="POST" class="account-grid">
+            <?php foreach ($accounts as $acc): ?>
+                <button type="submit" name="username" value="<?php echo htmlspecialchars($acc); ?>" class="btn-account <?php echo $acc === 'admin' ? 'admin' : ''; ?>">
+                    <?php echo htmlspecialchars($acc); ?>
+                </button>
+            <?php endforeach; ?>
         </form>
     </div>
 
@@ -246,7 +252,6 @@ if (!$isAdmin) {
         .btn-download { background-color: var(--primary); width: 100%; margin-bottom: 12px; }
         .btn-upload { background-color: var(--success); width: 100%; }
         
-        /* Style Tambahan Keterangan Item Terakhir */
         .last-item-box { background: #eef7ed; border: 1px solid #c3e6cb; border-radius: 10px; padding: 12px 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .last-item-title { font-size: 11px; font-weight: bold; color: #27ae60; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
         .last-item-desc { font-size: 14px; font-weight: bold; color: var(--primary); margin-bottom: 2px; word-break: break-word; }
@@ -340,11 +345,11 @@ if (!$isAdmin) {
             <?php endif; ?>
         </div>
         
+        <a href="?logout=true" class="btn-sidebar-logout">
+            <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+            Logout
+        </a>
         <div class="sidebar-footer">
-            <a href="?logout=true" class="btn-sidebar-logout">
-                <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
-                Logout
-            </a>
             <div id="sidebarTime" class="sidebar-time"></div>
         </div>
     </div>
@@ -406,7 +411,6 @@ if (!$isAdmin) {
             </div>
 
             <div id="tab3" class="tab-content">
-                <!-- Keterangan Item Terakhir di-Input -->
                 <div id="lastInputContainer" class="last-item-box" style="display: none;">
                     <div class="last-item-title">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
