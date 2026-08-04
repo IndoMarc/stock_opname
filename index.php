@@ -2,12 +2,19 @@
 session_start();
 
 $accounts = [
-    'admin',
     'CIF',
     'SSL',
     'SJL',
     'SCB',
     'SCG'
+];
+
+$roleNames = [
+    'CIF' => 'Chief Of Store',
+    'SSL' => 'Store Senior Leader',
+    'SJL' => 'Store Junior Leader',
+    'SCB' => 'Store Crew Boy',
+    'SCG' => 'Store Crew Girl'
 ];
 
 if (isset($_GET['logout'])) {
@@ -35,7 +42,7 @@ if (!isset($_SESSION['username'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Akun SO</title>
+    <title>Pilih Akun SO</title>
     <style>
         body { font-family: sans-serif; background-color: #f8f9fa; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .login-logo { width: 180px; height: auto; margin-bottom: 15px; }
@@ -44,8 +51,7 @@ if (!isset($_SESSION['username'])) {
         .account-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
         .btn-account { padding: 14px 10px; background: #ffffff; color: #2c3e50; border: 2px solid #e0e6ed; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
         .btn-account:hover { background: #3498db; color: white; border-color: #3498db; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(52, 152, 219, 0.25); }
-        .btn-account.admin { background: #fdf2f2; color: #e74c3c; border-color: #f8d7da; }
-        .btn-account.admin:hover { background: #e74c3c; color: white; border-color: #e74c3c; box-shadow: 0 4px 8px rgba(231, 76, 60, 0.25); }
+        .btn-account.cif { grid-column: 1 / -1; }
         .error { color: #e74c3c; font-size: 14px; margin-bottom: 10px; }
         .login-footer { margin-top: 15px; font-size: 13px; color: #7f8c8d; font-weight: 500; }
     </style>
@@ -58,7 +64,7 @@ if (!isset($_SESSION['username'])) {
         <?php if(isset($login_error)) echo "<div class='error'>$login_error</div>"; ?>
         <form method="POST" class="account-grid">
             <?php foreach ($accounts as $acc): ?>
-                <button type="submit" name="username" value="<?php echo htmlspecialchars($acc); ?>" class="btn-account <?php echo $acc === 'admin' ? 'admin' : ''; ?>">
+                <button type="submit" name="username" value="<?php echo htmlspecialchars($acc); ?>" class="btn-account <?php echo $acc === 'CIF' ? 'cif' : ''; ?>">
                     <?php echo htmlspecialchars($acc); ?>
                 </button>
             <?php endforeach; ?>
@@ -88,12 +94,11 @@ try {
 }
 
 $currentUser = $_SESSION['username'];
-$displayName = $currentUser;
-$isAdmin = ($currentUser === 'admin');
+$sidebarDisplayName = isset($roleNames[$currentUser]) ? $roleNames[$currentUser] : $currentUser;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
-    if ($_POST['action'] === 'save' && !$isAdmin) {
+    if ($_POST['action'] === 'save') {
         $plumd = $_POST['plumd'];
         $stok = (int)$_POST['stok'];
         
@@ -103,40 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         exit;
     }
     
-    if ($_POST['action'] === 'reset' && !$isAdmin) {
+    if ($_POST['action'] === 'reset') {
         $stmt = $pdo->prepare("DELETE FROM stok_fisik_user WHERE username = :username");
         $stmt->execute(['username' => $currentUser]);
         echo json_encode(['success' => true]);
-        exit;
-    }
-
-    if ($_POST['action'] === 'upload_hasil_selisih' && !$isAdmin) {
-        $itemsRaw = $_POST['items'] ?? '[]';
-        $itemsArray = json_decode($itemsRaw, true);
-        
-        if (is_array($itemsArray) && count($itemsArray) > 0) {
-            $pdo->beginTransaction();
-            try {
-                $stmt = $pdo->prepare("INSERT INTO hasil_selisih_so (username, modis, plumd, deskripsi, harga, selisih) VALUES (:username, :modis, :plumd, :deskripsi, :harga, :selisih)");
-                foreach ($itemsArray as $item) {
-                    $stmt->execute([
-                        'username' => $currentUser,
-                        'modis' => $item['modis'],
-                        'plumd' => $item['plumd'],
-                        'deskripsi' => $item['deskripsi'],
-                        'harga' => (float)$item['harga'],
-                        'selisih' => (int)$item['selisih']
-                    ]);
-                }
-                $pdo->commit();
-                echo json_encode(['success' => true, 'message' => count($itemsArray) . ' data hasil selisih berhasil diupload ke database.']);
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                echo json_encode(['success' => false, 'message' => 'Gagal mengupload data: ' . $e->getMessage()]);
-            }
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Tidak ada data hasil untuk diupload.']);
-        }
         exit;
     }
 
@@ -150,47 +125,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         exit;
     }
-
-    if ($_POST['action'] === 'admin_get_stok_fisik' && $isAdmin) {
-        try {
-            $stmt = $pdo->query("SELECT username, plumd, stok_fisik FROM stok_fisik_user ORDER BY username ASC");
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            echo json_encode(['success' => true, 'data' => $rows]);
-        } catch (Exception $e) {
-            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-        }
-        exit;
-    }
-
-    if ($_POST['action'] === 'admin_truncate_table' && $isAdmin) {
-        $table = $_POST['table'];
-        if (in_array($table, ['stok_fisik_user', 'hasil_selisih_so'])) {
-            try {
-                $pdo->exec("TRUNCATE TABLE $table");
-                echo json_encode(['success' => true, 'message' => "Seluruh isi tabel $table berhasil dikosongkan!"]);
-            } catch (Exception $e) {
-                echo json_encode(['success' => false, 'message' => 'Gagal meriset tabel: ' . $e->getMessage()]);
-            }
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Tabel tidak valid.']);
-        }
-        exit;
-    }
 }
 
 $savedData = [];
-if (!$isAdmin) {
-    $stmt = $pdo->prepare("SELECT plumd, stok_fisik FROM stok_fisik_user WHERE username = :username");
-    $stmt->execute(['username' => $currentUser]);
-    $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
-}
+$stmt = $pdo->prepare("SELECT plumd, stok_fisik FROM stok_fisik_user WHERE username = :username");
+$stmt->execute(['username' => $currentUser]);
+$savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STOCK OPNAME - <?php echo $displayName; ?></title>
+    <title>STOCK OPNAME - <?php echo htmlspecialchars($currentUser); ?></title>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --danger: #e74c3c; --success: #27ae60; }
@@ -215,9 +162,10 @@ if (!$isAdmin) {
         .user-info { display: flex; align-items: center; gap: 12px; color: #fff; }
         .user-info svg { fill: var(--accent); width: 26px; height: 26px; }
         .user-info span { font-weight: 600; font-size: 15px; letter-spacing: 0.3px; }
-        .close-sidebar { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; padding: 4px; border-radius: 50%; transition: background 0.2s; }
+        .close-sidebar { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 50%; transition: background 0.2s; }
         .close-sidebar:hover { background: rgba(255,255,255,0.08); }
-        .close-sidebar svg { fill: #95a5a6; width: 20px; height: 20px; }
+        .close-sidebar svg { stroke: #95a5a6; width: 20px; height: 20px; transition: stroke 0.2s; }
+        .close-sidebar:hover svg { stroke: #fff; }
         
         .sidebar-menu { flex: 1; padding: 20px 0; overflow-y: auto; }
         .tab-btn { width: 90%; text-align: left; padding: 12px 15px; margin: 6px auto; cursor: pointer; background: transparent; border: none; font-size: 13px; font-weight: 600; color: #a0aec0; display: flex; align-items: center; gap: 10px; border-radius: 8px; transition: all 0.2s; box-sizing: border-box; }
@@ -284,7 +232,7 @@ if (!$isAdmin) {
 </head>
 <body>
 
-    <div id="loader"><div class="loader-content"><div class="spinner"></div>Sedang memuat data...</div></div>
+    <div id="loader"><div class="loader-content"><div class="spinner"></div>Sedang memuat data ...</div></div>
 
     <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
@@ -293,7 +241,7 @@ if (!$isAdmin) {
             <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
         </button>
         <div class="header-title-container">
-            <h2>SO VIA HP</h2>
+            <h2>STOCK OPNAME</h2>
         </div>
         <a href="https://indomaret.wasmer.app/" class="btn-header-external" title="Buka Link">
             <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
@@ -306,45 +254,37 @@ if (!$isAdmin) {
                 <svg viewBox="0 0 24 24">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm0 14c-2.03 0-4.43-.82-6.14-2.88C7.55 15.8 9.68 15 12 15s4.45.8 6.14 2.12C16.43 19.18 14.03 20 12 20z"/>
                 </svg>
-                <span><?php echo $displayName; ?></span>
+                <span><?php echo htmlspecialchars($sidebarDisplayName); ?></span>
             </div>
-            <button class="close-sidebar" onclick="toggleSidebar()">
-                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            <button class="close-sidebar" onclick="toggleSidebar()" title="Tutup Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
             </button>
         </div>
         
         <div class="sidebar-menu">
-            <?php if ($isAdmin): ?>
-                <button class="tab-btn active" id="btn6" onclick="switchTab(6)">
-                    <svg viewBox="0 0 24 24"><path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/></svg>
-                    Tabel Stok Fisik User
-                </button>
-                <button class="tab-btn" id="btn7" onclick="switchTab(7)">
-                    <svg viewBox="0 0 24 24"><path d="M4 15h16v-2H4v2zm0 4h16v-2H4v2zm0-8h16V9H4v2zm0-6v2h16V5H4z"/></svg>
-                    Tabel Hasil Selisih SO
-                </button>
-            <?php else: ?>
-                <button class="tab-btn active" id="btn0" onclick="switchTab(0)">
-                    <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-                    Input Data Stok
-                </button>
-                <button class="tab-btn" id="btn1" onclick="switchTab(1)">
-                    <svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
-                    Pilih Modis SO
-                </button>
-                <button class="tab-btn" id="btn2" onclick="switchTab(2)" disabled>
-                    <svg viewBox="0 0 24 24"><path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/></svg>
-                    Daftar Listing Rak
-                </button>
-                <button class="tab-btn" id="btn3" onclick="switchTab(3)" disabled>
-                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    Input Stok SO
-                </button>
-                <button class="tab-btn" id="btn4" onclick="switchTab(4)" disabled>
-                    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-                    Hitung Selisih SO
-                </button>
-            <?php endif; ?>
+            <button class="tab-btn active" id="btn0" onclick="switchTab(0)">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                Input Data Stok
+            </button>
+            <button class="tab-btn" id="btn1" onclick="switchTab(1)">
+                <svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
+                Pilih Modis SO
+            </button>
+            <button class="tab-btn" id="btn3" onclick="switchTab(3)" disabled>
+                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                Input Stok SO
+            </button>
+            <button class="tab-btn" id="btn4" onclick="switchTab(4)" disabled>
+                <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+                Hitung Selisih SO
+            </button>
+            <button class="tab-btn" id="btn2" onclick="switchTab(2)" disabled>
+                <svg viewBox="0 0 24 24"><path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/></svg>
+                Hasil Selisih SO
+            </button>
         </div>
         
         <a href="?logout=true" class="btn-sidebar-logout">
@@ -357,99 +297,74 @@ if (!$isAdmin) {
     </div>
 
     <div class="content-container">
-        <?php if ($isAdmin): ?>
-            <div id="tab6" class="tab-content active fade-in">
-                <div class="filter-section">
-                    <label for="adminStokFilter" style="font-weight: bold; color: var(--primary);">Pilih NIK :</label>
-                    <select id="adminStokFilter" onchange="renderFilteredAdminStokTable()"></select>
-                    <div style="display: flex; gap: 5px; margin-top: 10px; justify-content: space-between;">
-                        <button class="btn-cari" style="background-color: var(--accent); width: auto;" onclick="loadAdminStokFisik()">Refresh Data</button>
-                        <button class="btn-cari" style="background-color: var(--danger); width: auto;" onclick="adminTruncateTable('stok_fisik_user')">Reset Isi Database</button>
-                    </div>
-                </div>
-                <div id="adminStokFisikContainer"></div>
+        <div id="tab0" class="tab-content active fade-in">
+            <div class="filter-section">
+                <h3 style="margin-top:0; color: var(--primary); text-align:center;">Sambung ke Wifi "anak" lalu ( <a href="http://192.168.137.1:3000/so_hp.html" target="_blank">Klik Disini !</a> ) untuk download data stok</h3>
+                <p style="font-size:12px; color:#666; text-align:center; margin-bottom:15px;"></p>
+                <button style="display: none;" class="btn-download" onclick="downloadDataSO()">Download Data Server (JSON)</button>
+                <div style="border-top: 1px dashed #ccc; margin: 15px 0;"></div>
+                <input type="file" id="fileJsonInput" accept=".json" style="display:none;" onchange="handleOfflineJson(this)">
+                <button class="btn-upload" onclick="document.getElementById('fileJsonInput').click()">=> Input Data Stok disini <=</button>
+                <div id="statusData" class="status-info">Silakan input file .json yg sudah di download</div>
             </div>
+        </div>
 
-            <div id="tab7" class="tab-content">
-                <div class="filter-section">
-                    <label for="adminHasilFilter" style="font-weight: bold; color: var(--primary);">Pilih NIK :</label>
-                    <select id="adminHasilFilter" onchange="renderFilteredAdminHasilTable()"></select>
-                    <div style="display: flex; gap: 5px; margin-top: 10px; justify-content: space-between;">
-                        <button class="btn-cari" style="background-color: var(--accent); width: auto;" onclick="loadAdminHasilSelisih()">Refresh Data</button>
-                        <button class="btn-cari" style="background-color: var(--danger); width: auto;" onclick="adminTruncateTable('hasil_selisih_so')">Reset Isi Database</button>
-                    </div>
-                </div>
-                <div id="adminHasilSelisihContainer"></div>
+        <div id="tab1" class="tab-content">
+            <div class="filter-section">
+                <label>Pilih Modis</label> <select id="rakSelect" onchange="checkFilter()"><option value="">-- Pilih --</option></select>
+                <label>Dari Shelfing</label> <select id="shelfStart" onchange="checkFilter()"><option value="">-- Semua --</option></select>
+                <label>Sampai Shelfing</label> <select id="shelfEnd" onchange="checkFilter()"><option value="">-- Semua --</option></select>
+                <button class="btn-cari" onclick="confirmFilter()">Simpan & Lanjut</button>
             </div>
-        <?php else: ?>
-            <div id="tab0" class="tab-content active fade-in">
-                <div class="filter-section">
-                    <h3 style="margin-top:0; color: var(--primary); text-align:center;">Sambung ke Wifi "anak" lalu ( <a href="http://192.168.137.1:3000/so_hp.html" target="_blank">Klik Disini !</a> ) untuk download data stok</h3>
-                    <p style="font-size:12px; color:#666; text-align:center; margin-bottom:15px;"></p>
-                    <button style="display: none;" class="btn-download" onclick="downloadDataSO()">Download Data Server (JSON)</button>
-                    <div style="border-top: 1px dashed #ccc; margin: 15px 0;"></div>
-                    <input type="file" id="fileJsonInput" accept=".json" style="display:none;" onchange="handleOfflineJson(this)">
-                    <button class="btn-upload" onclick="document.getElementById('fileJsonInput').click()">=> Input Data Stok disini <=</button>
-                    <div id="statusData" class="status-info">Silakan input file .json yg sudah di download</div>
+        </div>
+
+        <div id="tab3" class="tab-content">
+            <div id="lastInputContainer" class="last-item-box" style="display: none;">
+                <div class="last-item-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    Item terakhir yang di input
+                </div>
+                <div id="lastItemDesc" class="last-item-desc">-</div>
+                <div class="last-item-detail">
+                    <span>PLU : <b id="lastItemPlu">-</b></span>
+                    <span>Qty Input : <span id="lastItemStok" class="last-item-stok">0</span></span>
                 </div>
             </div>
 
-            <div id="tab1" class="tab-content">
-                <div class="filter-section">
-                    <label>Pilih Modis</label> <select id="rakSelect" onchange="checkFilter()"><option value="">-- Pilih --</option></select>
-                    <label>Dari Shelfing</label> <select id="shelfStart" onchange="checkFilter()"><option value="">-- Pilih --</option></select>
-                    <label>Sampai Shelfing</label> <select id="shelfEnd" onchange="checkFilter()"><option value="">-- Pilih --</option></select>
-                    <button class="btn-cari" onclick="confirmFilter()">Simpan & Lanjut</button>
+            <div class="filter-section">
+                <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                    <input type="text" id="searchInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Ketik PLU atau Barcode" style="margin-bottom: 0;">
+                    <button onclick="toggleScanner()" style="background: var(--primary); padding: 12px; border: none; border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: auto;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10"></rect></svg>
+                    </button>
                 </div>
+                <button class="btn-cari" onclick="searchAction()">Cari</button>
+                <div id="reader" style="display: none; margin-top: 10px;"></div>
             </div>
-
-            <div id="tab2" class="tab-content">
-                <div class="table-container">
-                    <table>
-                        <thead><tr><th>Modis</th><th>PLU</th><th>Deskripsi</th><th>Harga</th><th>Stok LPP</th><th>Stok Fisik</th></tr></thead>
-                        <tbody id="tableInput"></tbody>
-                    </table>
-                </div>
+            <div id="searchResultContainer" class="table-container" style="display:none;">
+                <table><thead><tr><th>Modis</th><th>PLU</th><th>Deskripsi</th><th>Input</th></tr></thead><tbody id="searchResultTable"></tbody></table>
             </div>
+        </div>
 
-            <div id="tab3" class="tab-content">
-                <div id="lastInputContainer" class="last-item-box" style="display: none;">
-                    <div class="last-item-title">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                        Item Terakhir Yg Di Input
-                    </div>
-                    <div id="lastItemDesc" class="last-item-desc">-</div>
-                    <div class="last-item-detail">
-                        <span>PLU : <b id="lastItemPlu">-</b></span>
-                        <span>Qty Input : <span id="lastItemStok" class="last-item-stok">0</span></span>
-                    </div>
-                </div>
-
-                <div class="filter-section">
-                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
-                        <input type="text" id="searchInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Ketik PLU atau Barcode" style="margin-bottom: 0;">
-                        <button onclick="toggleScanner()" style="background: var(--primary); padding: 12px; border: none; border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: auto;">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10"></rect></svg>
-                        </button>
-                    </div>
-                    <button class="btn-cari" onclick="searchAction()">Cari</button>
-                    <div id="reader" style="display: none; margin-top: 10px;"></div>
-                </div>
-                <div id="searchResultContainer" class="table-container" style="display:none;">
-                    <table><thead><tr><th>Deskripsi</th><th>Input</th></tr></thead><tbody id="searchResultTable"></tbody></table>
-                </div>
+        <div id="tab4" class="tab-content">
+            <div class="filter-section" style="display: flex; gap: 5px;">
+                <button class="btn-cari" onclick="calculateSelisih()">Proses</button>
             </div>
+            <div id="hasilProses"></div>
+        </div>
 
-            <div id="tab4" class="tab-content">
-                <div class="filter-section" style="display: flex; gap: 5px;">
-                    <button class="btn-cari" onclick="calculateSelisih()">Proses</button>
-                    <button class="btn-cari" style="background-color: #27ae60;" onclick="copyAllResults()">Salin</button>
-                    <button class="btn-cari" style="background-color: #e67e22;" onclick="uploadResultsToDb()">Upload</button>
-                    <button class="btn-cari" style="background-color: var(--danger);" onclick="resetUserProgress()">Reset</button>
-                </div>
-                <div id="hasilProses"></div>
+        <div id="tab2" class="tab-content">
+            <div class="filter-section" style="display: flex; gap: 5px; margin-bottom: 10px;">
+                <button class="btn-cari" style="background-color: #27ae60;" onclick="copyAllResults()">Salin Hasil Selisih</button>
+                <button class="btn-cari" style="background-color: var(--danger);" onclick="resetUserProgress()">Reset Inputan</button>
             </div>
-        <?php endif; ?>
+            <div class="table-container">
+                <table>
+                    <thead><tr><th>Modis</th><th>PLU</th><th>Deskripsi</th><th>Harga</th><th>Stok LPP</th><th>Stok Fisik</th><th>Selisih</th></tr></thead>
+                    <tbody id="tableInput"></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <footer class="main-footer">
@@ -478,10 +393,6 @@ if (!$isAdmin) {
         let html5QrcodeScanner;
         let currentQueryPlumd = '';
         let currentQueryType = '';
-        let databaseRowsGlobal = [];
-        let adminStokGlobal = [];
-        let adminHasilGlobal = [];
-        const isAdmin = <?php echo $isAdmin ? 'true' : 'false'; ?>;
 
         function updateRealtimeTime() {
             const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -510,15 +421,13 @@ if (!$isAdmin) {
         function processLoadedData(rawData) {
             fullData = rawData.sort((a, b) => a.NAMA_RAK.localeCompare(b.NAMA_RAK) || parseInt(a.NOSHELF) - parseInt(b.NOSHELF) || parseInt(a.KIRIKANAN) - parseInt(b.KIRIKANAN));
             
-            if(!isAdmin) {
-                document.getElementById('rakSelect').innerHTML = '<option value="">Pilih...</option>';
-                document.getElementById('shelfStart').innerHTML = '<option value="">Pilih...</option>';
-                document.getElementById('shelfEnd').innerHTML = '<option value="">Pilih...</option>';
-                populateFilters();
-            }
+            document.getElementById('rakSelect').innerHTML = '<option value="">Pilih...</option>';
+            document.getElementById('shelfStart').innerHTML = '<option value="">Pilih...</option>';
+            document.getElementById('shelfEnd').innerHTML = '<option value="">Pilih...</option>';
+            populateFilters();
             
             localStorage.setItem('so_full_data', JSON.stringify(fullData));
-            if(!isAdmin) loadSavedFilter();
+            loadSavedFilter();
         }
 
         function handleOfflineJson(input) {
@@ -571,10 +480,8 @@ if (!$isAdmin) {
                 b.classList.toggle('active', btnId === idx);
             });
             
-            if(!isAdmin && idx === 2) renderTable();
-            if(!isAdmin && idx === 3) checkLastInputDisplay();
-            if(isAdmin && idx === 6) loadAdminStokFisik();
-            if(isAdmin && idx === 7) loadAdminHasilSelisih();
+            if(idx === 2) renderTable();
+            if(idx === 3) checkLastInputDisplay();
             
             const sidebar = document.getElementById('sidebar');
             if(sidebar.classList.contains('open')) {
@@ -703,6 +610,12 @@ if (!$isAdmin) {
                 uniqueResults.forEach(item => {
                     const tr = document.createElement('tr');
                     
+                    const tdModis = document.createElement('td');
+                    tdModis.innerText = `${item.NAMA_RAK.substring(0,6)}-${item.NOSHELF}-${item.KIRIKANAN}`;
+                    
+                    const tdPlu = document.createElement('td');
+                    tdPlu.innerText = item.PLUMD;
+
                     const tdDesc = document.createElement('td');
                     tdDesc.innerText = item.DESC2;
                     
@@ -715,6 +628,8 @@ if (!$isAdmin) {
                     btn.addEventListener('click', () => openPopup(item));
                     
                     tdBtn.appendChild(btn);
+                    tr.appendChild(tdModis);
+                    tr.appendChild(tdPlu);
                     tr.appendChild(tdDesc);
                     tr.appendChild(tdBtn);
                     tbody.appendChild(tr);
@@ -850,7 +765,24 @@ if (!$isAdmin) {
                        (parseInt(a.KIRIKANAN) - parseInt(b.KIRIKANAN));
             });
 
-            document.getElementById('tableInput').innerHTML = sortedData.map(i => `<tr><td>${i.NAMA_RAK.substring(0,6)}-${i.NOSHELF}-${i.KIRIKANAN}</td><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${parseFloat(i.PRICE).toLocaleString('id-ID')}</td><td>${i.QTY}</td><td>${dataInputan.get(i.PLUMD) ?? ""}</td></tr>`).join('');
+            document.getElementById('tableInput').innerHTML = sortedData.map(i => {
+                let qtyVal = parseInt(i.QTY) || 0;
+                let npbVal = parseInt(i.NPB) || 0;
+                let stokLpp = qtyVal + npbVal;
+                let isInputted = dataInputan.has(i.PLUMD);
+                let stokFisikVal = dataInputan.get(i.PLUMD);
+                
+                let selisihStr = "";
+                if (isInputted) {
+                    let stokFisik = parseInt(stokFisikVal) || 0;
+                    let diff = stokFisik - stokLpp;
+                    selisihStr = diff > 0 ? `+${diff}` : `${diff}`;
+                } else if (stokLpp !== 0) {
+                    selisihStr = `-${stokLpp}`;
+                }
+
+                return `<tr><td>${i.NAMA_RAK.substring(0,6)}-${i.NOSHELF}-${i.KIRIKANAN}</td><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${parseFloat(i.PRICE).toLocaleString('id-ID')}</td><td>${stokLpp}</td><td>${stokFisikVal ?? ""}</td><td>${selisihStr}</td></tr>`;
+            }).join('');
         }
 
         function calculateSelisih() {
@@ -860,14 +792,14 @@ if (!$isAdmin) {
             getFilteredData().forEach(i => { if(!uniqueMap.has(i.PLUMD)) uniqueMap.set(i.PLUMD, i); });
 
             uniqueMap.forEach((item, plumd) => {
-                let qtySys = parseInt(item.QTY) || 0;
+                let qtySys = (parseInt(item.QTY) || 0) + (parseInt(item.NPB) || 0);
                 if(!dataInputan.has(plumd)) { 
-                    if(qtySys !== 0) currentResults.belum.push(item); 
+                    if(qtySys !== 0) currentResults.belum.push({...item, stokLpp: qtySys}); 
                 }
                 else {
                     let selisih = parseInt(dataInputan.get(plumd)) - qtySys;
-                    if(selisih > 0) currentResults.plus.push({...item, selisih});
-                    else if(selisih < 0) currentResults.minus.push({...item, selisih});
+                    if(selisih > 0) currentResults.plus.push({...item, selisih, stokLpp: qtySys});
+                    else if(selisih < 0) currentResults.minus.push({...item, selisih, stokLpp: qtySys});
                     else if(selisih === 0 && qtySys !== 0) {
                     }
                 }
@@ -879,10 +811,15 @@ if (!$isAdmin) {
 
         function createTable(title, data, isSelisih, isBelum, type) {
             if(data.length === 0) return "";
-            return `<div class="selisih-title">${title}</div><div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th>Harga</th>${isBelum ? '<th>Stok LPP</th>' : ''}${isSelisih ? '<th>Selisih</th>' : ''}<th>Query</th></tr></thead><tbody>${data.map(i => `<tr><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${parseInt(i.PRICE).toLocaleString()}</td>${isBelum ? `<td>${i.QTY}</td>` : ''}${isSelisih ? `<td>${i.selisih > 0 ? '+' : ''}${i.selisih}</td>` : ''}<td><button style="background:var(--accent); padding:4px 8px; font-size:10px;" onclick="openQueryPopup('${i.PLUMD}', '${i.DESC2.replace(/'/g, "\\'")}', '${type}')">Input</button></td></tr>`).join('')}</tbody></table></div>`;
+            return `<div class="selisih-title">${title}</div><div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th>Harga</th><th>Stok LPP</th>${isSelisih ? '<th>Selisih</th>' : ''}<th>Query</th></tr></thead><tbody>${data.map(i => `<tr><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${parseInt(i.PRICE).toLocaleString()}</td><td>${i.stokLpp}</td>${isSelisih ? `<td>${i.selisih > 0 ? '+' : ''}${i.selisih}</td>` : ''}<td><button style="background:var(--accent); padding:4px 8px; font-size:10px;" onclick="openQueryPopup('${i.PLUMD}', '${i.DESC2.replace(/'/g, "\\'")}', '${type}')">Input</button></td></tr>`).join('')}</tbody></table></div>`;
         }
 
         function copyAllResults() {
+            if (currentResults.plus.length === 0 && currentResults.minus.length === 0 && currentResults.belum.length === 0) {
+                alert("Silakan buka menu 'Hitung Selisih SO' lalu klik tombol 'Proses' terlebih dahulu !");
+                return;
+            }
+
             let text = "HASIL STOCK OPNAME\n";
             
             if(currentResults.plus.length > 0) {
@@ -902,7 +839,7 @@ if (!$isAdmin) {
                 });
                 
                 currentResults.belum.forEach(i => {
-                    let qtySys = parseInt(i.QTY) || 0;
+                    let qtySys = (parseInt(i.QTY) || 0) + (parseInt(i.NPB) || 0);
                     text += `${i.PLUMD} | ${i.DESC2} | ${parseInt(i.PRICE).toLocaleString()} | -${qtySys}\n`;
                 });
             }
@@ -915,222 +852,11 @@ if (!$isAdmin) {
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
-            alert("Semua data berhasil disalin! Bagian 'Belum Input' otomatis masuk ke kelompok 'Daftar Minus' pada hasil salinan.");
-        }
-
-        async function uploadResultsToDb() {
-            if (currentResults.plus.length === 0 && currentResults.minus.length === 0 && currentResults.belum.length === 0) {
-                alert("Silakan tekan tombol 'Proses' terlebih dahulu untuk memuat data hasil.");
-                return;
-            }
-
-            if (!confirm("Apakah Anda yakin ingin mengupload semua hasil perhitungan ini ke database?")) {
-                return;
-            }
-
-            const itemsToUpload = [];
-
-            currentResults.plus.forEach(i => {
-                itemsToUpload.push({
-                    modis: `${i.NAMA_RAK.substring(0,6)}-${i.NOSHELF}-${i.KIRIKANAN}`,
-                    plumd: i.PLUMD,
-                    deskripsi: i.DESC2,
-                    harga: i.PRICE,
-                    selisih: parseInt(i.selisih)
-                });
-            });
-
-            currentResults.minus.forEach(i => {
-                itemsToUpload.push({
-                    modis: `${i.NAMA_RAK.substring(0,6)}-${i.NOSHELF}-${i.KIRIKANAN}`,
-                    plumd: i.PLUMD,
-                    deskripsi: i.DESC2,
-                    harga: i.PRICE,
-                    selisih: parseInt(i.selisih)
-                });
-            });
-
-            currentResults.belum.forEach(i => {
-                let qtySys = parseInt(i.QTY) || 0;
-                itemsToUpload.push({
-                    modis: `${i.NAMA_RAK.substring(0,6)}-${i.NOSHELF}-${i.KIRIKANAN}`,
-                    plumd: i.PLUMD,
-                    deskripsi: i.DESC2,
-                    harga: i.PRICE,
-                    selisih: -qtySys
-                });
-            });
-
-            const loader = document.getElementById('loader');
-            loader.style.display = 'block';
-
-            try {
-                const formData = new FormData();
-                formData.append('action', 'upload_hasil_selisih');
-                formData.append('items', JSON.stringify(itemsToUpload));
-
-                const response = await fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const result = await response.json();
-                loader.style.display = 'none';
-
-                if (result.success) {
-                    alert(result.message);
-                } else {
-                    alert(result.message);
-                }
-            } catch (e) {
-                loader.style.display = 'none';
-                alert("Terjadi kesalahan jaringan saat mengupload data.");
-            }
-        }
-
-        async function loadAdminStokFisik() {
-            const container = document.getElementById('adminStokFisikContainer');
-            const selectFilter = document.getElementById('adminStokFilter');
-            container.innerHTML = "";
-            const loader = document.getElementById('loader');
-            loader.style.display = 'block';
-
-            try {
-                const formData = new FormData();
-                formData.append('action', 'admin_get_stok_fisik');
-
-                const response = await fetch(window.location.href, { method: 'POST', body: formData });
-                const result = await response.json();
-                loader.style.display = 'none';
-
-                if (result.success && result.data.length > 0) {
-                    adminStokGlobal = result.data;
-                    let users = [...new Set(adminStokGlobal.map(item => item.username))].sort();
-                    
-                    selectFilter.innerHTML = "";
-                    users.forEach(u => {
-                        selectFilter.innerHTML += `<option value="${u}">${u}</option>`;
-                    });
-                    
-                    renderFilteredAdminStokTable();
-                } else {
-                    selectFilter.innerHTML = "<option value=''>-- Kosong --</option>";
-                    container.innerHTML = "<div class='status-info'>Tabel stok_fisik_user kosong.</div>";
-                }
-            } catch (e) {
-                loader.style.display = 'none';
-                alert("Gagal memuat data dari database.");
-            }
-        }
-
-        function renderFilteredAdminStokTable() {
-            const container = document.getElementById('adminStokFisikContainer');
-            const selectedUser = document.getElementById('adminStokFilter').value;
-            container.innerHTML = "";
-
-            if(!selectedUser) return;
-
-            const filtered = adminStokGlobal.filter(item => item.username === selectedUser);
-
-            if (filtered.length === 0) {
-                container.innerHTML = "<div class='status-info'>Tidak ada data.</div>";
-                return;
-            }
-
-            let tableHtml = `<div class="table-container"><table><thead><tr><th>User NIK</th><th>PLU</th><th>Stok Fisik</th></tr></thead><tbody>`;
-            filtered.forEach(i => {
-                tableHtml += `<tr><td>${i.username}</td><td>${i.plumd}</td><td>${i.stok_fisik}</td></tr>`;
-            });
-            tableHtml += `</tbody></table></div>`;
-            container.innerHTML = tableHtml;
-        }
-
-        async function loadAdminHasilSelisih() {
-            const container = document.getElementById('adminHasilSelisihContainer');
-            const selectFilter = document.getElementById('adminHasilFilter');
-            container.innerHTML = "";
-            const loader = document.getElementById('loader');
-            loader.style.display = 'block';
-
-            try {
-                const formData = new FormData();
-                formData.append('action', 'get_database_results');
-
-                const response = await fetch(window.location.href, { method: 'POST', body: formData });
-                const result = await response.json();
-                loader.style.display = 'none';
-
-                if (result.success && result.data.length > 0) {
-                    adminHasilGlobal = result.data;
-                    let users = [...new Set(adminHasilGlobal.map(item => item.username))].sort();
-
-                    selectFilter.innerHTML = "";
-                    users.forEach(u => {
-                        selectFilter.innerHTML += `<option value="${u}">${u}</option>`;
-                    });
-
-                    renderFilteredAdminHasilTable();
-                } else {
-                    selectFilter.innerHTML = "<option value=''>-- Kosong --</option>";
-                    container.innerHTML = "<div class='status-info'>Tabel hasil_selisih_so kosong.</div>";
-                }
-            } catch (e) {
-                loader.style.display = 'none';
-                alert("Gagal memuat data dari database.");
-            }
-        }
-
-        function renderFilteredAdminHasilTable() {
-            const container = document.getElementById('adminHasilSelisihContainer');
-            const selectedUser = document.getElementById('adminHasilFilter').value;
-            container.innerHTML = "";
-
-            if(!selectedUser) return;
-
-            const filtered = adminHasilGlobal.filter(item => item.username === selectedUser);
-
-            if (filtered.length === 0) {
-                container.innerHTML = "<div class='status-info'>Tidak ada data.</div>";
-                return;
-            }
-
-            let tableHtml = `<div class="table-container"><table><thead><tr><th>Modis</th><th>PLU</th><th>Deskripsi</th><th>Harga</th><th>Selisih</th></tr></thead><tbody>`;
-            filtered.forEach(i => {
-                let formattedSelisih = i.selisih > 0 ? `+${i.selisih}` : i.selisih;
-                let colorStyle = i.selisih > 0 ? 'color:green; font-weight:bold;' : 'color:red; font-weight:bold;';
-                tableHtml += `<tr><td>${i.modis}</td><td>${i.plumd}</td><td>${i.deskripsi}</td><td>${parseInt(i.harga).toLocaleString('id-ID')}</td><td style="${colorStyle}">${formattedSelisih}</td></tr>`;
-            });
-            tableHtml += `</tbody></table></div>`;
-            container.innerHTML = tableHtml;
-        }
-
-        async function adminTruncateTable(tableName) {
-            if (!confirm(`PERINGATAN! Apakah Anda yakin ingin MENGHAPUS SEMUA data di tabel ${tableName}? Tindakan ini tidak dapat dibatalkan.`)) {
-                return;
-            }
-            const loader = document.getElementById('loader');
-            loader.style.display = 'block';
-
-            try {
-                const formData = new FormData();
-                formData.append('action', 'admin_truncate_table');
-                formData.append('table', tableName);
-
-                const response = await fetch(window.location.href, { method: 'POST', body: formData });
-                const result = await response.json();
-                loader.style.display = 'none';
-
-                alert(result.message);
-                if (tableName === 'stok_fisik_user') loadAdminStokFisik();
-                if (tableName === 'hasil_selisih_so') loadAdminHasilSelisih();
-            } catch (e) {
-                loader.style.display = 'none';
-                alert("Terjadi kesalahan koneksi saat mengosongkan database.");
-            }
+            alert("Semua data berhasil disalin ! Bagian 'Belum Input' otomatis masuk ke kelompok 'Daftar Minus' pada hasil salinan ...");
         }
 
         async function resetUserProgress() {
-            if (confirm("Apakah Anda yakin ingin menghapus SEMUA hasil progres inputan stok untuk akun Anda? Tindakan ini tidak dapat dibatalkan.")) {
+            if (confirm("Apakah kamu yakin ingin menghapus SEMUA hasil progres inputan stok untuk akun ini ? Tindakan ini tidak dapat dibatalkan ...")) {
                 try {
                     const formData = new FormData();
                     formData.append('action', 'reset');
@@ -1149,13 +875,13 @@ if (!$isAdmin) {
                         localStorage.removeItem('so_last_input');
                         checkLastInputDisplay();
                         document.getElementById('hasilProses').innerHTML = "";
-                        alert("Semua progres inputan Anda berhasil direset!");
+                        alert("Semua progres inputan kamu berhasil direset !");
                         switchTab(1);
                     } else {
-                        alert("Gagal meriset data. Coba beberapa saat lagi.");
+                        alert("Gagal meriset data, Coba beberapa saat lagi ...");
                     }
                 } catch (e) {
-                    alert("Terjadi kesalahan koneksi saat meriset data.");
+                    alert("Terjadi kesalahan koneksi saat meriset data ...");
                 }
             }
         }
@@ -1165,19 +891,14 @@ if (!$isAdmin) {
             if (savedOfflineData) {
                 const parsed = JSON.parse(savedOfflineData);
                 fullData = parsed;
-                if(!isAdmin) {
-                    populateFilters();
-                    loadSavedFilter();
-                }
+                populateFilters();
+                loadSavedFilter();
                 
                 const statusData = document.getElementById('statusData');
                 if (statusData) {
                     statusData.innerText = `Menggunakan data tersimpan (${fullData.length} item loaded)`;
                     statusData.style.color = "var(--success)";
                 }
-            }
-            if(isAdmin) {
-                loadAdminStokFisik();
             }
         });
     </script>
