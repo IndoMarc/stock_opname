@@ -99,25 +99,111 @@ $sidebarDisplayName = isset($roleNames[$currentUser]) ? $roleNames[$currentUser]
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
     if ($_POST['action'] === 'save') {
-        $plumd = $_POST['plumd'];
-        $stok = (int)$_POST['stok'];
-        
-        $stmt = $pdo->prepare("INSERT INTO stok_fisik_user (plumd, username, stok_fisik) VALUES (:plumd, :username, :stok) ON DUPLICATE KEY UPDATE stok_fisik = :stok");
-        $stmt->execute(['plumd' => $plumd, 'username' => $currentUser, 'stok' => $stok]);
-        echo json_encode(['success' => true]);
+        try {
+            $plumd = $_POST['plumd'];
+            $stok = (int)$_POST['stok'];
+            
+            $stmt = $pdo->prepare("INSERT INTO stok_fisik_user (plumd, username, stok_fisik) VALUES (:plumd, :username, :stok) ON DUPLICATE KEY UPDATE stok_fisik = :stok");
+            $stmt->execute(['plumd' => $plumd, 'username' => $currentUser, 'stok' => $stok]);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
         exit;
     }
     
     if ($_POST['action'] === 'reset') {
-        $stmt = $pdo->prepare("DELETE FROM stok_fisik_user WHERE username = :username");
-        $stmt->execute(['username' => $currentUser]);
-        echo json_encode(['success' => true]);
+        try {
+            $stmt = $pdo->prepare("DELETE FROM stok_fisik_user WHERE username = :username");
+            $stmt->execute(['username' => $currentUser]);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($_POST['action'] === 'upload_hasil') {
+        try {
+            $items = isset($_POST['items']) ? json_decode($_POST['items'], true) : [];
+            
+            if (empty($items)) {
+                echo json_encode(['success' => false, 'message' => 'Tidak ada data selisih untuk di-upload.']);
+                exit;
+            }
+
+            $stmt = $pdo->prepare("INSERT INTO hasil_selisih_so (plumd, selisih) VALUES (:plumd, :selisih)");
+            
+            $pdo->beginTransaction();
+            foreach ($items as $item) {
+                $stmt->execute([
+                    'plumd'   => $item['plumd'],
+                    'selisih' => (int)$item['selisih']
+                ]);
+            }
+            $pdo->commit();
+
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($_POST['action'] === 'get_user_uploaded_items') {
+        try {
+            $stmt = $pdo->query("SELECT h1.* FROM hasil_selisih_so h1 INNER JOIN (SELECT plumd, MAX(id) as max_id FROM hasil_selisih_so GROUP BY plumd) h2 ON h1.id = h2.max_id ORDER BY h1.plumd ASC");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode(['success' => true, 'data' => $rows]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($_POST['action'] === 'update_selisih_item') {
+        try {
+            $id = (int)$_POST['id'];
+            $newSelisih = (int)$_POST['selisih'];
+
+            $stmt = $pdo->prepare("UPDATE hasil_selisih_so SET selisih = :selisih WHERE id = :id");
+            $stmt->execute(['selisih' => $newSelisih, 'id' => $id]);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($_POST['action'] === 'delete_uploaded_item') {
+        try {
+            $id = (int)$_POST['id'];
+
+            $stmt = $pdo->prepare("DELETE FROM hasil_selisih_so WHERE id = :id");
+            $stmt->execute(['id' => $id]);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($_POST['action'] === 'reset_all_uploaded_items') {
+        try {
+            $pdo->exec("TRUNCATE TABLE hasil_selisih_so");
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
         exit;
     }
 
     if ($_POST['action'] === 'get_database_results') {
         try {
-            $stmt = $pdo->query("SELECT h1.* FROM hasil_selisih_so h1 INNER JOIN (SELECT username, modis, plumd, MAX(id) as max_id FROM hasil_selisih_so GROUP BY username, modis, plumd) h2 ON h1.id = h2.max_id ORDER BY h1.username ASC, h1.modis ASC, h1.created_at DESC");
+            $stmt = $pdo->query("SELECT h1.* FROM hasil_selisih_so h1 INNER JOIN (SELECT plumd, MAX(id) as max_id FROM hasil_selisih_so GROUP BY plumd) h2 ON h1.id = h2.max_id ORDER BY h1.created_at DESC");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'data' => $rows]);
         } catch (Exception $e) {
@@ -174,6 +260,16 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         .tab-btn.active { color: #fff; background: var(--accent); box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3); }
         .tab-btn:disabled { opacity: 0.25; cursor: not-allowed; }
         
+        .sub-menu-container { display: none; background: rgba(0,0,0,0.2); padding: 5px 0; border-radius: 8px; width: 90%; margin: 0 auto; }
+        .sub-menu-container.show { display: block; }
+        .sub-tab-btn { width: 90%; text-align: left; padding: 10px 15px 10px 35px; margin: 4px auto; cursor: pointer; background: transparent; border: none; font-size: 12px; font-weight: 600; color: #a0aec0; display: flex; align-items: center; gap: 8px; border-radius: 6px; transition: all 0.2s; box-sizing: border-box; }
+        .sub-tab-btn svg { width: 15px; height: 15px; fill: currentColor; flex-shrink: 0; }
+        .sub-tab-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+        .sub-tab-btn.active { color: #fff; background: #2980b9; }
+
+        .arrow-icon { margin-left: auto; transition: transform 0.3s; }
+        .arrow-icon.rotate { transform: rotate(180deg); }
+
         .sidebar-footer { padding: 15px; border-top: 1px solid rgba(255,255,255,0.08); background: #17212a; text-align: center; }
         .sidebar-time { font-size: 12px; color: #a0aec0; font-weight: 500; line-height: 1.4; }
         
@@ -228,6 +324,18 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         #queryPopup.pop-in { opacity: 1; transform: translate(-50%, 0) scale(1); }
         .btn-query-action { background-color: var(--success); width: 100%; margin-top: 5px; }
         .group-header { background-color: #34495e; color: #fff; padding: 8px 12px; font-weight: bold; font-size: 13px; margin-top: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+        .alert-message { display: none; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-bottom: 12px; text-align: center; }
+        .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        
+        .text-right { text-align: right; }
+        
+        .btn-action-edit { background-color: #f39c12; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; margin-right: 4px; }
+        .btn-action-delete { background-color: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; }
+        .btn-action-edit:hover { background-color: #d35400; }
+        .btn-action-delete:hover { background-color: #c0392b; }
+        .action-cell { white-space: nowrap; text-align: center; }
     </style>
 </head>
 <body>
@@ -285,6 +393,27 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 <svg viewBox="0 0 24 24"><path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/></svg>
                 Hasil Selisih SO
             </button>
+            
+            <button class="tab-btn" id="btnMore" onclick="toggleSubMenu()">
+                <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+                Menu Lainnya
+                <svg class="arrow-icon" id="arrowIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+            </button>
+            
+            <div class="sub-menu-container" id="subMenuContainer">
+                <button class="sub-tab-btn" id="btn6" onclick="switchTab(6)">
+                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                    Input Satuan PLU
+                </button>
+                <button class="sub-tab-btn" id="btn7" onclick="switchTab(7)">
+                    <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 4h16v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
+                    Input Banyak PLU
+                </button>
+                <button class="sub-tab-btn" id="btn5" onclick="switchTab(5)">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                    List Item Yg Sudah Di SO
+                </button>
+            </div>
         </div>
         
         <a href="?logout=true" class="btn-sidebar-logout">
@@ -319,6 +448,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         </div>
 
         <div id="tab3" class="tab-content">
+            <div id="stokAlert" class="alert-message"></div>
             <div id="lastInputContainer" class="last-item-box" style="display: none;">
                 <div class="last-item-title">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
@@ -347,6 +477,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         </div>
 
         <div id="tab4" class="tab-content">
+            <div id="queryAlert" class="alert-message"></div>
             <div class="filter-section" style="display: flex; gap: 5px;">
                 <button class="btn-cari" onclick="calculateSelisih()">Proses</button>
             </div>
@@ -357,13 +488,58 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             <div class="filter-section" style="display: flex; gap: 5px; margin-bottom: 10px;">
                 <button class="btn-cari" style="background-color: #27ae60;" onclick="copyAllResults()">Salin Hasil Selisih</button>
                 <button class="btn-cari" style="background-color: var(--danger);" onclick="resetUserProgress()">Reset Inputan</button>
+                <button class="btn-cari" style="background-color: #f39c12;" onclick="uploadToMysql()">Upload Ke MySQL</button>
             </div>
             <div class="table-container">
                 <table>
-                    <thead><tr><th>Modis</th><th>PLU</th><th>Deskripsi</th><th>Harga</th><th>Stok LPP</th><th>Stok Fisik</th><th>Selisih</th></tr></thead>
+                    <thead><tr><th>Modis</th><th>PLU</th><th>Deskripsi</th><th>Stok LPP</th><th>Stok Fisik</th><th>Selisih</th></tr></thead>
                     <tbody id="tableInput"></tbody>
                 </table>
             </div>
+        </div>
+
+        <div id="tab6" class="tab-content">
+            <div id="directInputAlert" class="alert-message"></div>
+            <div class="filter-section">
+                <h3 style="margin-top:0; color: var(--primary);">Input Satuan PLU</h3>
+                <label>Input PLU</label>
+                <input type="text" id="directPluInput" inputmode="numeric" placeholder="Ketik PLU">
+                
+                <label>Input Selisih (+ atau -)</label>
+                <input type="number" id="directSelisihInput" placeholder="Contoh : 5 atau -3">
+                
+                <button class="btn-cari" style="background-color: var(--accent); margin-top: 5px;" onclick="processDirectItemInput()">Proses</button>
+            </div>
+            <div id="directResultInfo" class="last-item-box" style="display: none;">
+                <div class="last-item-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    Item Berhasil Terproses
+                </div>
+                <div id="directItemDesc" class="last-item-desc">-</div>
+                <div class="last-item-detail">
+                    <span>PLU : <b id="directItemPlu">-</b></span>
+                    <span>Selisih : <span id="directItemSelisih" class="last-item-stok">0</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab7" class="tab-content">
+            <div id="bulkInputAlert" class="alert-message"></div>
+            <div class="filter-section">
+                <h3 style="margin-top:0; color: var(--primary);">Input Banyak PLU</h3>
+                <label>Paste Data Item ( PLU Selisih )</label>
+                <textarea id="bulkDataInput" rows="10" placeholder="Contoh : &#10;20134253 -1&#10;10000073 -2&#10;10040122 +1"></textarea>
+                <button class="btn-cari" style="background-color: var(--accent); margin-top: 5px;" onclick="processBulkItemInput()">Proses</button>
+            </div>
+        </div>
+
+        <div id="tab5" class="tab-content">
+            <div class="filter-section" style="display: flex; gap: 10px;">
+                <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Lihat Item Yg Di Upload</button>
+                <button class="btn-cari" style="background-color: #27ae60; flex: 1;" onclick="copyUploadedItemsTable()">Salin Isi Data</button>
+                <button class="btn-cari" style="background-color: #e74c3c; flex: 1;" onclick="resetUploadedItems()">Reset Data Tabel</button>
+            </div>
+            <div id="uploadedItemsContainer"></div>
         </div>
     </div>
 
@@ -372,6 +548,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     </footer>
 
     <div id="popup">
+        <div id="popupAlert" class="alert-message"></div>
         <p id="popText" style="margin-top:0; font-weight:bold;"></p>
         <input type="text" id="stokInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Input Stok SO">
         <div class="popup-action-group">
@@ -382,6 +559,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     </div>
 
     <div id="queryPopup">
+        <div id="queryPopupAlert" class="alert-message"></div>
         <p id="queryPopText" style="margin-top:0; font-weight:bold;"></p>
         <input type="text" id="querySalesInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Input Query Sales">
         <button class="btn-query-action" onclick="prosesTambahQuery()">Tambah</button>
@@ -393,6 +571,21 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         let html5QrcodeScanner;
         let currentQueryPlumd = '';
         let currentQueryType = '';
+        let currentUploadedData = { listPlus: [], listMinus: [], grandTotalPlus: 0, grandTotalMinus: 0 };
+        let isSubMenuUnlocked = false;
+
+        function showAlert(elementId, message, isSuccess = true, duration = 3000) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            el.innerText = message;
+            el.className = 'alert-message ' + (isSuccess ? 'alert-success' : 'alert-error');
+            el.style.display = 'block';
+            if (duration > 0) {
+                setTimeout(() => {
+                    el.style.display = 'none';
+                }, duration);
+            }
+        }
 
         function updateRealtimeTime() {
             const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -418,12 +611,34 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             document.getElementById('sidebarOverlay').classList.toggle('show');
         }
 
+        function toggleSubMenu() {
+            const subContainer = document.getElementById('subMenuContainer');
+            const arrowIcon = document.getElementById('arrowIcon');
+
+            if (!subContainer.classList.contains('show')) {
+                if (!isSubMenuUnlocked) {
+                    const pass = prompt("Masukkan kode akses untuk membuka :");
+                    if (pass === "@@@@") {
+                        isSubMenuUnlocked = true;
+                    } else {
+                        if (pass !== null) {
+                            alert("Kode akses salah !");
+                        }
+                        return;
+                    }
+                }
+            }
+
+            subContainer.classList.toggle('show');
+            arrowIcon.classList.toggle('rotate');
+        }
+
         function processLoadedData(rawData) {
             fullData = rawData.sort((a, b) => a.NAMA_RAK.localeCompare(b.NAMA_RAK) || parseInt(a.NOSHELF) - parseInt(b.NOSHELF) || parseInt(a.KIRIKANAN) - parseInt(b.KIRIKANAN));
             
-            document.getElementById('rakSelect').innerHTML = '<option value="">Pilih...</option>';
-            document.getElementById('shelfStart').innerHTML = '<option value="">Pilih...</option>';
-            document.getElementById('shelfEnd').innerHTML = '<option value="">Pilih...</option>';
+            document.getElementById('rakSelect').innerHTML = '<option value="">-- Pilih --</option>';
+            document.getElementById('shelfStart').innerHTML = '<option value="">-- Semua --</option>';
+            document.getElementById('shelfEnd').innerHTML = '<option value="">-- Semua --</option>';
             populateFilters();
             
             localStorage.setItem('so_full_data', JSON.stringify(fullData));
@@ -461,8 +676,23 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         }
 
         function switchTab(idx) {
+            if (idx === 5 || idx === 6 || idx === 7) {
+                if (!isSubMenuUnlocked) {
+                    const pass = prompt("Masukkan kode akses Menu Lainnya:");
+                    if (pass === "@@@@") {
+                        isSubMenuUnlocked = true;
+                    } else {
+                        if (pass !== null) {
+                            alert("Kode akses salah!");
+                        }
+                        return;
+                    }
+                }
+            }
+
             const tabs = document.querySelectorAll('.tab-content');
-            const btns = document.querySelectorAll('.sidebar-menu .tab-btn');
+            const mainBtns = document.querySelectorAll('.sidebar-menu > .tab-btn');
+            const subBtns = document.querySelectorAll('.sub-tab-btn');
             
             tabs.forEach((t) => {
                 let tabId = parseInt(t.id.replace('tab', ''));
@@ -475,10 +705,24 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 }
             });
             
-            btns.forEach((b) => {
+            mainBtns.forEach((b) => {
                 let btnId = parseInt(b.id.replace('btn', ''));
                 b.classList.toggle('active', btnId === idx);
             });
+
+            subBtns.forEach((sb) => {
+                let subId = parseInt(sb.id.replace('btn', ''));
+                sb.classList.toggle('active', subId === idx);
+            });
+
+            const btnMore = document.getElementById('btnMore');
+            if (idx === 5 || idx === 6 || idx === 7) {
+                btnMore.classList.add('active');
+                document.getElementById('subMenuContainer').classList.add('show');
+                document.getElementById('arrowIcon').classList.add('rotate');
+            } else {
+                btnMore.classList.remove('active');
+            }
             
             if(idx === 2) renderTable();
             if(idx === 3) checkLastInputDisplay();
@@ -668,23 +912,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             setTimeout(() => qpop.style.display = 'none', 300);
         }
 
-        async function prosesTambahQuery() {
-            let queryVal = parseInt(document.getElementById('querySalesInput').value) || 0;
-            if (queryVal <= 0) {
-                alert("Masukkan jumlah query yang valid.");
-                return;
-            }
-
-            let currentStok = parseInt(dataInputan.get(currentQueryPlumd)) || 0;
-            let totalStok = currentStok + queryVal;
-
-            dataInputan.set(currentQueryPlumd, totalStok);
-            await updateDbStok(currentQueryPlumd, totalStok);
-
-            closeQueryPopup();
-            calculateSelisih();
-        }
-
         async function updateDbStok(plumd, newStok) {
             try {
                 const formData = new FormData();
@@ -692,11 +919,37 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 formData.append('plumd', plumd);
                 formData.append('stok', newStok);
 
-                await fetch(window.location.href, {
+                const res = await fetch(window.location.href, {
                     method: 'POST',
                     body: formData
                 });
-            } catch (e) {}
+                return await res.json();
+            } catch (e) {
+                return { success: false, message: e.message };
+            }
+        }
+
+        async function prosesTambahQuery() {
+            let rawVal = document.getElementById('querySalesInput').value;
+            let queryVal = parseInt(rawVal);
+            if (isNaN(queryVal) || queryVal <= 0) {
+                showAlert('queryPopupAlert', 'Masukkan jumlah query yang valid!', false);
+                return;
+            }
+
+            let currentStok = parseInt(dataInputan.get(currentQueryPlumd)) || 0;
+            let totalStok = currentStok + queryVal;
+
+            let result = await updateDbStok(currentQueryPlumd, totalStok);
+
+            if (result && result.success) {
+                dataInputan.set(currentQueryPlumd, totalStok);
+                showAlert('queryAlert', 'Berhasil menambahkan query sales!', true);
+                closeQueryPopup();
+                calculateSelisih();
+            } else {
+                showAlert('queryPopupAlert', 'Gagal menyimpan ke database! Data batal ditambahkan.', false);
+            }
         }
 
         function updateLastInputDisplay(item, totalStok) {
@@ -726,25 +979,49 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         }
 
         async function simpanStok() { 
-            let val = parseInt(document.getElementById('stokInput').value) || 0;
+            let rawVal = document.getElementById('stokInput').value;
+            let val = parseInt(rawVal);
+            if (isNaN(val) || val <= 0) {
+                showAlert('popupAlert', 'Jumlah stok tidak boleh kosong atau 0!', false);
+                return;
+            }
+
             let currentStok = parseInt(dataInputan.get(window.currentItem.PLUMD)) || 0;
             let totalStok = currentStok + val;
             
-            dataInputan.set(window.currentItem.PLUMD, totalStok); 
-            await updateDbStok(window.currentItem.PLUMD, totalStok);
-            updateLastInputDisplay(window.currentItem, totalStok);
-            resetForm();
+            let result = await updateDbStok(window.currentItem.PLUMD, totalStok);
+            
+            if (result && result.success) {
+                dataInputan.set(window.currentItem.PLUMD, totalStok); 
+                updateLastInputDisplay(window.currentItem, totalStok);
+                showAlert('stokAlert', 'Stok berhasil ditambahkan!', true);
+                resetForm();
+            } else {
+                showAlert('popupAlert', 'Gagal menyimpan ke database! Data batal ditambahkan.', false);
+            }
         }
 
         async function kurangStok() {
             let currentStok = parseInt(dataInputan.get(window.currentItem.PLUMD)) || 0;
-            let inputMinus = parseInt(document.getElementById('stokInput').value) || 0;
+            let rawVal = document.getElementById('stokInput').value;
+            let inputMinus = parseInt(rawVal);
+            if (isNaN(inputMinus) || inputMinus <= 0) {
+                showAlert('popupAlert', 'Jumlah stok pengurangan tidak valid!', false);
+                return;
+            }
+
             let totalStok = currentStok - inputMinus;
             
-            dataInputan.set(window.currentItem.PLUMD, totalStok);
-            await updateDbStok(window.currentItem.PLUMD, totalStok);
-            updateLastInputDisplay(window.currentItem, totalStok);
-            resetForm();
+            let result = await updateDbStok(window.currentItem.PLUMD, totalStok);
+
+            if (result && result.success) {
+                dataInputan.set(window.currentItem.PLUMD, totalStok);
+                updateLastInputDisplay(window.currentItem, totalStok);
+                showAlert('stokAlert', 'Stok berhasil dikurangi!', true);
+                resetForm();
+            } else {
+                showAlert('popupAlert', 'Gagal memperbarui ke database! Data batal dikurangi.', false);
+            }
         }
 
         function resetForm() {
@@ -781,7 +1058,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     selisihStr = `-${stokLpp}`;
                 }
 
-                return `<tr><td>${i.NAMA_RAK.substring(0,6)}-${i.NOSHELF}-${i.KIRIKANAN}</td><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${parseFloat(i.PRICE).toLocaleString('id-ID')}</td><td>${stokLpp}</td><td>${stokFisikVal ?? ""}</td><td>${selisihStr}</td></tr>`;
+                return `<tr><td>${i.NAMA_RAK.substring(0,6)}-${i.NOSHELF}-${i.KIRIKANAN}</td><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${stokLpp}</td><td>${stokFisikVal ?? ""}</td><td>${selisihStr}</td></tr>`;
             }).join('');
         }
 
@@ -811,7 +1088,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         function createTable(title, data, isSelisih, isBelum, type) {
             if(data.length === 0) return "";
-            return `<div class="selisih-title">${title}</div><div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th>Harga</th><th>Stok LPP</th>${isSelisih ? '<th>Selisih</th>' : ''}<th>Query</th></tr></thead><tbody>${data.map(i => `<tr><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${parseInt(i.PRICE).toLocaleString()}</td><td>${i.stokLpp}</td>${isSelisih ? `<td>${i.selisih > 0 ? '+' : ''}${i.selisih}</td>` : ''}<td><button style="background:var(--accent); padding:4px 8px; font-size:10px;" onclick="openQueryPopup('${i.PLUMD}', '${i.DESC2.replace(/'/g, "\\'")}', '${type}')">Input</button></td></tr>`).join('')}</tbody></table></div>`;
+            return `<div class="selisih-title">${title}</div><div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th>Stok LPP</th>${isSelisih ? '<th>Selisih</th>' : ''}<th>Query</th></tr></thead><tbody>${data.map(i => `<tr><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${i.stokLpp}</td>${isSelisih ? `<td>${i.selisih > 0 ? '+' : ''}${i.selisih}</td>` : ''}<td><button style="background:var(--accent); padding:4px 8px; font-size:10px;" onclick="openQueryPopup('${i.PLUMD}', '${i.DESC2.replace(/'/g, "\\'")}', '${type}')">Input</button></td></tr>`).join('')}</tbody></table></div>`;
         }
 
         function copyAllResults() {
@@ -820,29 +1097,33 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 return;
             }
 
-            let text = "HASIL STOCK OPNAME\n";
+            const rakSelect = document.getElementById('rakSelect');
+            const namaModis = rakSelect.options[rakSelect.selectedIndex] ? rakSelect.options[rakSelect.selectedIndex].text : '';
+
+            let text = "```\n";
+            text += `HASIL SO ( ${namaModis} )\n`;
             
+            text += `\nDAFTAR PLUS (+)\n`;
+            text += `-------------------------\n`;
             if(currentResults.plus.length > 0) {
-                text += `\n--- DAFTAR PLUS (+) ---\n`;
-                text += `PLU | Deskripsi | Harga | Selisih\n`;
                 currentResults.plus.forEach(i => {
-                    text += `${i.PLUMD} | ${i.DESC2} | ${parseInt(i.PRICE).toLocaleString()} | +${i.selisih}\n`;
+                    text += `${i.PLUMD} ${i.DESC2} (+${i.selisih})\n`;
                 });
             }
-            
+
+            text += `\nDAFTAR MINUS (-)\n`;
+            text += `-------------------------\n`;
             if(currentResults.minus.length > 0 || currentResults.belum.length > 0) {
-                text += `\n--- DAFTAR MINUS (-) ---\n`;
-                text += `PLU | Deskripsi | Harga | Selisih\n`;
-                
                 currentResults.minus.forEach(i => {
-                    text += `${i.PLUMD} | ${i.DESC2} | ${parseInt(i.PRICE).toLocaleString()} | ${i.selisih}\n`;
+                    text += `${i.PLUMD} ${i.DESC2} (${i.selisih})\n`;
                 });
                 
                 currentResults.belum.forEach(i => {
                     let qtySys = (parseInt(i.QTY) || 0) + (parseInt(i.NPB) || 0);
-                    text += `${i.PLUMD} | ${i.DESC2} | ${parseInt(i.PRICE).toLocaleString()} | -${qtySys}\n`;
+                    text += `${i.PLUMD} ${i.DESC2} (-${qtySys})\n`;
                 });
             }
+            text += "```";
             
             const textArea = document.createElement("textarea");
             textArea.value = text;
@@ -852,7 +1133,475 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
-            alert("Semua data berhasil disalin ! Bagian 'Belum Input' otomatis masuk ke kelompok 'Daftar Minus' pada hasil salinan ...");
+            alert("Semua data berhasil disalin !");
+        }
+
+        async function uploadToMysql() {
+            if (currentResults.plus.length === 0 && currentResults.minus.length === 0 && currentResults.belum.length === 0) {
+                alert("Silakan buka menu 'Hitung Selisih SO' lalu klik tombol 'Proses' terlebih dahulu !");
+                return;
+            }
+
+            const payloadItems = [];
+
+            currentResults.plus.forEach(i => {
+                payloadItems.push({ plumd: i.PLUMD, selisih: i.selisih });
+            });
+
+            currentResults.minus.forEach(i => {
+                payloadItems.push({ plumd: i.PLUMD, selisih: i.selisih });
+            });
+
+            currentResults.belum.forEach(i => {
+                let qtySys = (parseInt(i.QTY) || 0) + (parseInt(i.NPB) || 0);
+                payloadItems.push({ plumd: i.PLUMD, selisih: -qtySys });
+            });
+
+            if (payloadItems.length === 0) {
+                alert("Tidak ada item selisih yang ditemukan untuk di-upload.");
+                return;
+            }
+
+            if (!confirm(`Apakah kamu yakin ingin meng-upload ${payloadItems.length} data hasil selisih ke MySQL database?`)) {
+                return;
+            }
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'upload_hasil');
+                formData.append('items', JSON.stringify(payloadItems));
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert("Berhasil meng-upload data hasil selisih ke database MySQL!");
+                } else {
+                    alert("Gagal meng-upload data: " + (result.message || 'Terjadi kesalahan server'));
+                }
+            } catch (e) {
+                alert("Terjadi kesalahan koneksi saat meng-upload data ke MySQL.");
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        async function processDirectItemInput() {
+            const inputPlu = document.getElementById('directPluInput').value.trim();
+            const rawSelisih = document.getElementById('directSelisihInput').value.trim();
+
+            if (!inputPlu) {
+                showAlert('directInputAlert', 'Ketik PLU item terlebih dahulu!', false);
+                return;
+            }
+
+            if (rawSelisih === "" || isNaN(parseInt(rawSelisih))) {
+                showAlert('directInputAlert', 'Masukkan jumlah selisih (+ atau -) yang valid!', false);
+                return;
+            }
+
+            const selisihVal = parseInt(rawSelisih);
+
+            if (fullData.length === 0) {
+                showAlert('directInputAlert', 'Data stok (JSON) belum di-load! Silakan input file JSON terlebih dahulu di menu awal.', false);
+                return;
+            }
+
+            const foundItem = fullData.find(item => item.PLUMD === inputPlu);
+
+            if (!foundItem) {
+                showAlert('directInputAlert', `Gagal! Item PLU ${inputPlu} TIDAK DITEMUKAN di data stok.`, false);
+                document.getElementById('directResultInfo').style.display = 'none';
+                return;
+            }
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            try {
+                const payload = [{ plumd: inputPlu, selisih: selisihVal }];
+                const formData = new FormData();
+                formData.append('action', 'upload_hasil');
+                formData.append('items', JSON.stringify(payload));
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert('directInputAlert', `Berhasil! Item PLU ${inputPlu} terproses dan tersimpan.`, true);
+                    
+                    document.getElementById('directItemDesc').innerText = foundItem.DESC2 || '-';
+                    document.getElementById('directItemPlu').innerText = inputPlu;
+                    document.getElementById('directItemSelisih').innerText = (selisihVal > 0 ? '+' : '') + selisihVal;
+                    document.getElementById('directResultInfo').style.display = 'block';
+
+                    document.getElementById('directPluInput').value = "";
+                    document.getElementById('directSelisihInput').value = "";
+                } else {
+                    showAlert('directInputAlert', 'Gagal memproses item: ' + (result.message || 'Terjadi kesalahan server'), false);
+                }
+            } catch (e) {
+                showAlert('directInputAlert', 'Terjadi kesalahan koneksi saat memproses data item.', false);
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        async function processBulkItemInput() {
+            const rawText = document.getElementById('bulkDataInput').value.trim();
+
+            if (!rawText) {
+                showAlert('bulkInputAlert', 'Ketik atau tempel data item terlebih dahulu!', false);
+                return;
+            }
+
+            if (fullData.length === 0) {
+                showAlert('bulkInputAlert', 'Data stok (JSON) belum di-load! Silakan input file JSON terlebih dahulu di menu awal.', false);
+                return;
+            }
+
+            const validPlumdSet = new Set(fullData.map(item => item.PLUMD));
+
+            const lines = rawText.split('\n');
+            const payloadItems = [];
+            let notFoundCount = 0;
+            let invalidFormatCount = 0;
+
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return;
+
+                const parts = trimmed.split(/\s+/);
+                if (parts.length >= 2) {
+                    const plumd = parts[0].trim();
+                    const selisih = parseInt(parts[1].trim());
+
+                    if (plumd && !isNaN(selisih)) {
+                        if (validPlumdSet.has(plumd)) {
+                            payloadItems.push({ plumd: plumd, selisih: selisih });
+                        } else {
+                            notFoundCount++;
+                        }
+                    } else {
+                        invalidFormatCount++;
+                    }
+                } else {
+                    invalidFormatCount++;
+                }
+            });
+
+            if (payloadItems.length === 0) {
+                let errorMsg = 'Gagal! Tidak ada PLU yang cocok dengan data stok.';
+                if (invalidFormatCount > 0) {
+                    errorMsg += ' Periksa kembali format teks.';
+                }
+                showAlert('bulkInputAlert', errorMsg, false);
+                return;
+            }
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'upload_hasil');
+                formData.append('items', JSON.stringify(payloadItems));
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    let msg = `Berhasil! ${payloadItems.length} item ter-upload.`;
+                    let details = [];
+                    if (notFoundCount > 0) details.push(`${notFoundCount} PLU tidak ditemukan di stok`);
+                    if (invalidFormatCount > 0) details.push(`${invalidFormatCount} format salah`);
+                    
+                    if (details.length > 0) {
+                        msg += ` (` + details.join(', ') + ` diabaikan)`;
+                    }
+                    
+                    showAlert('bulkInputAlert', msg, true, 5000);
+                    document.getElementById('bulkDataInput').value = "";
+                } else {
+                    showAlert('bulkInputAlert', 'Gagal memproses bulk: ' + (result.message || 'Terjadi kesalahan server'), false);
+                }
+            } catch (e) {
+                showAlert('bulkInputAlert', 'Terjadi kesalahan koneksi saat memproses data bulk.', false);
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function formatRupiah(number) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(number);
+        }
+
+        async function editUploadedItem(id, plumd, currentSelisih) {
+            let val = prompt(`Edit nilai selisih untuk PLU ${plumd}:`, currentSelisih);
+            if (val === null) return;
+            let newSelisih = parseInt(val);
+            if (isNaN(newSelisih)) {
+                alert("Masukkan angka selisih yang valid!");
+                return;
+            }
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'update_selisih_item');
+                formData.append('id', id);
+                formData.append('selisih', newSelisih);
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert("Selisih item berhasil diperbarui!");
+                    loadUploadedItems();
+                } else {
+                    alert("Gagal memperbarui selisih: " + (result.message || 'Terjadi kesalahan server'));
+                }
+            } catch (e) {
+                alert("Terjadi kesalahan koneksi saat merubah data selisih.");
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        async function deleteUploadedItem(id, plumd) {
+            if (!confirm(`Apakah kamu yakin ingin menghapus item PLU ${plumd} dari database?`)) {
+                return;
+            }
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'delete_uploaded_item');
+                formData.append('id', id);
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert("Item berhasil dihapus dari database!");
+                    loadUploadedItems();
+                } else {
+                    alert("Gagal menghapus item: " + (result.message || 'Terjadi kesalahan server'));
+                }
+            } catch (e) {
+                alert("Terjadi kesalahan koneksi saat menghapus item.");
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        async function resetUploadedItems() {
+            if (!confirm("Apakah kamu yakin ingin MENGHAPUS SEMUA ISI TABEL data item yang di-upload? Tindakan ini tidak dapat dibatalkan!")) {
+                return;
+            }
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'reset_all_uploaded_items');
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert("Semua data di tabel berhasil di-reset!");
+                    currentUploadedData = { listPlus: [], listMinus: [], grandTotalPlus: 0, grandTotalMinus: 0 };
+                    document.getElementById('uploadedItemsContainer').innerHTML = `<div class="status-info">Belum ada data item yang di-upload.</div>`;
+                } else {
+                    alert("Gagal mereset data: " + (result.message || 'Terjadi kesalahan server'));
+                }
+            } catch (e) {
+                alert("Terjadi kesalahan koneksi saat mereset isi tabel.");
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function copyUploadedItemsTable() {
+            if (currentUploadedData.listPlus.length === 0 && currentUploadedData.listMinus.length === 0) {
+                alert("Silakan klik tombol 'Lihat Item Yg Di Upload' terlebih dahulu sebelum menyalin data!");
+                return;
+            }
+
+            let text = "```\n";
+            text += "DAFTAR ITEM YANG DI SO\n";
+
+            text += "\nDAFTAR ITEM PLUS (+)\n";
+            text += "--------------------------------------------------\n";
+            if (currentUploadedData.listPlus.length > 0) {
+                currentUploadedData.listPlus.forEach(i => {
+                    text += `${i.plumd} | ${i.desc} | Harga: ${formatRupiah(i.harga)} | Selisih: +${i.selisih} | Total: +${formatRupiah(i.totalHarga)}\n`;
+                });
+                text += `\nGRAND TOTAL PLUS : +${formatRupiah(currentUploadedData.grandTotalPlus)}\n`;
+            } else {
+                text += "Tidak ada item plus.\n";
+            }
+
+            text += "\nDAFTAR ITEM MINUS (-)\n";
+            text += "--------------------------------------------------\n";
+            if (currentUploadedData.listMinus.length > 0) {
+                currentUploadedData.listMinus.forEach(i => {
+                    text += `${i.plumd} | ${i.desc} | Harga: ${formatRupiah(i.harga)} | Selisih: ${i.selisih} | Total: -${formatRupiah(Math.abs(i.totalHarga))}\n`;
+                });
+                text += `\nGRAND TOTAL MINUS : -${formatRupiah(Math.abs(currentUploadedData.grandTotalMinus))}\n`;
+            } else {
+                text += "Tidak ada item minus.\n";
+            }
+            text += "```";
+
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            alert("Isi data tabel berhasil disalin ke clipboard!");
+        }
+
+        async function loadUploadedItems() {
+            const container = document.getElementById('uploadedItemsContainer');
+            container.innerHTML = "";
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'get_user_uploaded_items');
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    const rows = result.data || [];
+                    if (rows.length === 0) {
+                        currentUploadedData = { listPlus: [], listMinus: [], grandTotalPlus: 0, grandTotalMinus: 0 };
+                        container.innerHTML = `<div class="status-info">Belum ada data item yang di-upload.</div>`;
+                        return;
+                    }
+
+                    const mapFullData = new Map();
+                    fullData.forEach(item => {
+                        let price = parseFloat(item.HARGA || item.HARGA_JUAL || item.HRGJL || item.PRICE || 0);
+                        mapFullData.set(item.PLUMD, {
+                            desc: item.DESC2 || '-',
+                            harga: price
+                        });
+                    });
+
+                    const listPlus = [];
+                    const listMinus = [];
+
+                    rows.forEach(r => {
+                        const selisih = parseInt(r.selisih) || 0;
+                        const itemInfo = mapFullData.get(r.plumd) || { desc: '-', harga: 0 };
+                        const harga = itemInfo.harga;
+                        const totalHarga = harga * selisih;
+
+                        const itemObj = {
+                            id: r.id,
+                            plumd: r.plumd,
+                            desc: itemInfo.desc,
+                            harga: harga,
+                            selisih: selisih,
+                            totalHarga: totalHarga
+                        };
+
+                        if (selisih > 0) {
+                            listPlus.push(itemObj);
+                        } else if (selisih < 0) {
+                            listMinus.push(itemObj);
+                        }
+                    });
+
+                    let grandTotalPlus = 0;
+                    let grandTotalMinus = 0;
+
+                    let html = "";
+
+                    if (listPlus.length > 0) {
+                        html += `<div class="selisih-title">DAFTAR ITEM PLUS (+)</div>`;
+                        html += `<div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th class="text-right">Harga Normal</th><th>Selisih</th><th class="text-right">Total</th><th class="action-cell">Aksi</th></tr></thead><tbody>`;
+                        listPlus.forEach(i => {
+                            grandTotalPlus += i.totalHarga;
+                            let formattedHarga = formatRupiah(i.harga);
+                            let formattedTotal = "+" + formatRupiah(i.totalHarga);
+                            html += `<tr><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>+${i.selisih}</td><td class="text-right" style="color:#27ae60; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button><button class="btn-action-delete" onclick="deleteUploadedItem(${i.id}, '${i.plumd}')">Hapus</button></td></tr>`;
+                        });
+                        html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL PLUS :</td><td class="text-right" style="color:#27ae60;">+${formatRupiah(grandTotalPlus)}</td><td></td></tr>`;
+                        html += `</tbody></table></div>`;
+                    } else {
+                        html += `<div class="selisih-title">DAFTAR ITEM PLUS (+)</div><div class="status-info">Tidak ada item plus.</div>`;
+                    }
+
+                    if (listMinus.length > 0) {
+                        html += `<div class="selisih-title">DAFTAR ITEM MINUS (-)</div>`;
+                        html += `<div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th class="text-right">Harga Normal</th><th>Selisih</th><th class="text-right">Total</th><th class="action-cell">Aksi</th></tr></thead><tbody>`;
+                        listMinus.forEach(i => {
+                            grandTotalMinus += i.totalHarga;
+                            let formattedHarga = formatRupiah(i.harga);
+                            let formattedTotal = "-" + formatRupiah(Math.abs(i.totalHarga));
+                            html += `<tr><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>${i.selisih}</td><td class="text-right" style="color:#e74c3c; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button><button class="btn-action-delete" onclick="deleteUploadedItem(${i.id}, '${i.plumd}')">Hapus</button></td></tr>`;
+                        });
+                        html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL MINUS :</td><td class="text-right" style="color:#e74c3c;">-${formatRupiah(Math.abs(grandTotalMinus))}</td><td></td></tr>`;
+                        html += `</tbody></table></div>`;
+                    } else {
+                        html += `<div class="selisih-title">DAFTAR ITEM MINUS (-)</div><div class="status-info">Tidak ada item minus.</div>`;
+                    }
+
+                    currentUploadedData = {
+                        listPlus: listPlus,
+                        listMinus: listMinus,
+                        grandTotalPlus: grandTotalPlus,
+                        grandTotalMinus: grandTotalMinus
+                    };
+
+                    container.innerHTML = html;
+                } else {
+                    alert("Gagal mengambil data: " + (result.message || 'Terjadi kesalahan server'));
+                }
+            } catch (e) {
+                alert("Terjadi kesalahan koneksi saat mengambil data item di-upload.");
+            } finally {
+                loader.style.display = 'none';
+            }
         }
 
         async function resetUserProgress() {
