@@ -473,15 +473,14 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             <div class="filter-section">
                 <div style="display: flex; gap: 5px; margin-bottom: 10px;">
-                    <input type="text" id="searchInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Ketik PLU atau Barcode" style="margin-bottom: 0;">
+                    <input type="text" id="searchInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, ''); searchAction();" placeholder="Ketik PLU atau Barcode" style="margin-bottom: 0;">
                     <button onclick="toggleScanner()" style="background: var(--primary); padding: 12px; border: none; border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: auto;">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10"></rect></svg>
                     </button>
                 </div>
-                <button class="btn-cari" onclick="searchAction()">Cari</button>
                 <div id="reader" style="display: none; margin-top: 10px;"></div>
             </div>
-            <div id="searchResultContainer" class="table-container" style="display:none;">
+            <div id="searchResultContainer" class="table-container">
                 <table><thead><tr><th>Modis</th><th>PLU</th><th>Deskripsi</th><th>Input</th></tr></thead><tbody id="searchResultTable"></tbody></table>
             </div>
         </div>
@@ -534,7 +533,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         <div id="tab7" class="tab-content">
             <div class="filter-section">
                 <h3 style="margin-top:0; color: var(--primary);">Input Banyak PLU</h3>
-                <label>Paste Data Item ( PLU Selisih )</label>
+                <label>Ketik Atau Paste Data Item ( PLU Selisih )</label>
                 <textarea id="bulkDataInput" rows="10" placeholder="Contoh : &#10;20134253 -1&#10;10000073 -2&#10;10040122 +1"></textarea>
                 <button class="btn-cari" style="background-color: var(--accent); margin-top: 5px;" onclick="processBulkItemInput()">Proses</button>
             </div>
@@ -542,7 +541,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         <div id="tab5" class="tab-content">
             <div class="filter-section" style="display: flex; gap: 10px;">
-                <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Lihat Item Yg Di Upload</button>
+                <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Lihat Item Di Database</button>
                 <button class="btn-cari" style="background-color: #27ae60; flex: 1;" onclick="copyUploadedItemsTable()">Salin Isi Data</button>
                 <button class="btn-cari" style="background-color: #e74c3c; flex: 1;" onclick="resetUploadedItems()">Reset Data Tabel</button>
             </div>
@@ -747,7 +746,10 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             }
             
             if(idx === 2) renderTable();
-            if(idx === 3) checkLastInputDisplay();
+            if(idx === 3) {
+                checkLastInputDisplay();
+                searchAction();
+            }
             
             const sidebar = document.getElementById('sidebar');
             if(sidebar.classList.contains('open')) {
@@ -858,21 +860,33 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         function searchAction() {
             const search = document.getElementById('searchInput').value.trim();
-            if (!search) {
-                Swal.fire('Peringatan', 'Masukkan angka pencarian terlebih dahulu !', 'warning');
-                return;
+            const modisData = getFilteredData();
+            
+            let filtered = modisData;
+            if (search !== "") {
+                filtered = modisData.filter(i => (i.PLUMD && i.PLUMD.includes(search)) || (i.BARCD && i.BARCD.includes(search)));
             }
-            const filtered = getFilteredData().filter(i => i.PLUMD.includes(search) || i.BARCD.includes(search));
-            const uniqueResults = []; const seen = new Set();
-            filtered.forEach(i => { if(!seen.has(i.PLUMD)) { uniqueResults.push(i); seen.add(i.PLUMD); } });
 
-            if(uniqueResults.length === 0) Swal.fire('Informasi', 'Data tidak ditemukan.', 'info');
-            else if(uniqueResults.length === 1) openPopup(uniqueResults[0]);
-            else {
-                document.getElementById('searchResultContainer').style.display = 'block';
-                const tbody = document.getElementById('searchResultTable');
-                tbody.innerHTML = ""; 
-                
+            const uniqueResults = []; 
+            const seen = new Set();
+            
+            filtered.forEach(i => { 
+                if(!seen.has(i.PLUMD)) { 
+                    uniqueResults.push(i); 
+                    seen.add(i.PLUMD); 
+                } 
+            });
+
+            const tbody = document.getElementById('searchResultTable');
+            tbody.innerHTML = "";
+
+            if (search !== "" && uniqueResults.length === 1) {
+                openPopup(uniqueResults[0]);
+            }
+
+            if (uniqueResults.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#888;">Data tidak ditemukan.</td></tr>`;
+            } else {
                 uniqueResults.forEach(item => {
                     const tr = document.createElement('tr');
                     
@@ -1071,7 +1085,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         function resetForm() {
             document.getElementById('stokInput').value = ""; 
             document.getElementById('searchInput').value = ""; 
-            document.getElementById('searchResultContainer').style.display = 'none'; 
+            searchAction();
             closePopup();
         }
 
@@ -1125,9 +1139,9 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     }
                 }
             });
-            container.innerHTML += createTable("DAFTAR PLUS (+)", currentResults.plus, true, false, 'plus');
-            container.innerHTML += createTable("DAFTAR MINUS (-)", currentResults.minus, true, false, 'minus');
-            container.innerHTML += createTable("DAFTAR BELUM INPUT SO", currentResults.belum, false, true, 'belum');
+            container.innerHTML += createTable("LIST ITEM PLUS (+)", currentResults.plus, true, false, 'plus');
+            container.innerHTML += createTable("LIST ITEM MINUS (-)", currentResults.minus, true, false, 'minus');
+            container.innerHTML += createTable("LIST ITEM BELUM INPUT SO", currentResults.belum, false, true, 'belum');
         }
 
         function createTable(title, data, isSelisih, isBelum, type) {
@@ -1147,7 +1161,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             let text = "```\n";
             text += `HASIL SO ( ${namaModis} )\n`;
             
-            text += `\nDAFTAR PLUS (+)\n`;
+            text += `\nLIST ITEM PLUS (+)\n`;
             text += `-------------------------\n`;
             if(currentResults.plus.length > 0) {
                 currentResults.plus.forEach(i => {
@@ -1155,7 +1169,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 });
             }
 
-            text += `\nDAFTAR MINUS (-)\n`;
+            text += `\nLIST ITEM MINUS (-)\n`;
             text += `-------------------------\n`;
             if(currentResults.minus.length > 0 || currentResults.belum.length > 0) {
                 currentResults.minus.forEach(i => {
@@ -1531,9 +1545,9 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             }
 
             let text = "```\n";
-            text += "DAFTAR ITEM YANG DI SO\n";
+            text += "LIST ITEM YANG DI SO\n";
 
-            text += "\nDAFTAR ITEM PLUS (+)\n";
+            text += "\nLIST ITEM PLUS (+)\n";
             text += "--------------------------------------------------\n";
             if (currentUploadedData.listPlus.length > 0) {
                 currentUploadedData.listPlus.forEach(i => {
@@ -1544,7 +1558,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 text += "Tidak ada item plus.\n";
             }
 
-            text += "\nDAFTAR ITEM MINUS (-)\n";
+            text += "\nLIST ITEM MINUS (-)\n";
             text += "--------------------------------------------------\n";
             if (currentUploadedData.listMinus.length > 0) {
                 currentUploadedData.listMinus.forEach(i => {
@@ -1632,7 +1646,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     let html = "";
 
                     if (listPlus.length > 0) {
-                        html += `<div class="selisih-title">DAFTAR ITEM PLUS (+)</div>`;
+                        html += `<div class="selisih-title">LIST ITEM PLUS (+)</div>`;
                         html += `<div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th class="text-right">Harga Normal</th><th>Selisih</th><th class="text-right">Total</th><th class="action-cell">Aksi</th></tr></thead><tbody>`;
                         listPlus.forEach(i => {
                             grandTotalPlus += i.totalHarga;
@@ -1643,11 +1657,11 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                         html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL PLUS :</td><td class="text-right" style="color:#27ae60;">+${formatRupiah(grandTotalPlus)}</td><td></td></tr>`;
                         html += `</tbody></table></div>`;
                     } else {
-                        html += `<div class="selisih-title">DAFTAR ITEM PLUS (+)</div><div class="status-info">Tidak ada item plus.</div>`;
+                        html += `<div class="selisih-title">LIST ITEM PLUS (+)</div><div class="status-info">Tidak ada item plus.</div>`;
                     }
 
                     if (listMinus.length > 0) {
-                        html += `<div class="selisih-title">DAFTAR ITEM MINUS (-)</div>`;
+                        html += `<div class="selisih-title">LIST ITEM MINUS (-)</div>`;
                         html += `<div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th class="text-right">Harga Normal</th><th>Selisih</th><th class="text-right">Total</th><th class="action-cell">Aksi</th></tr></thead><tbody>`;
                         listMinus.forEach(i => {
                             grandTotalMinus += i.totalHarga;
@@ -1658,7 +1672,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                         html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL MINUS :</td><td class="text-right" style="color:#e74c3c;">-${formatRupiah(Math.abs(grandTotalMinus))}</td><td></td></tr>`;
                         html += `</tbody></table></div>`;
                     } else {
-                        html += `<div class="selisih-title">DAFTAR ITEM MINUS (-)</div><div class="status-info">Tidak ada item minus.</div>`;
+                        html += `<div class="selisih-title">LIST ITEM MINUS (-)</div><div class="status-info">Tidak ada item minus.</div>`;
                     }
 
                     currentUploadedData = {
