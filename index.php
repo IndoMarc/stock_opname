@@ -43,6 +43,7 @@ if (!isset($_SESSION['username'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pilih Akun SO</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body { font-family: sans-serif; background-color: #f8f9fa; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .login-logo { width: 180px; height: auto; margin-bottom: 15px; }
@@ -52,7 +53,6 @@ if (!isset($_SESSION['username'])) {
         .btn-account { padding: 14px 10px; background: #ffffff; color: #2c3e50; border: 2px solid #e0e6ed; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
         .btn-account:hover { background: #3498db; color: white; border-color: #3498db; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(52, 152, 219, 0.25); }
         .btn-account.cif { grid-column: 1 / -1; }
-        .error { color: #e74c3c; font-size: 14px; margin-bottom: 10px; }
         .login-footer { margin-top: 15px; font-size: 13px; color: #7f8c8d; font-weight: 500; }
     </style>
 </head>
@@ -61,7 +61,6 @@ if (!isset($_SESSION['username'])) {
     
     <div class="login-box">
         <h3>Pilih Akun Stock Opname</h3>
-        <?php if(isset($login_error)) echo "<div class='error'>$login_error</div>"; ?>
         <form method="POST" class="account-grid">
             <?php foreach ($accounts as $acc): ?>
                 <button type="submit" name="username" value="<?php echo htmlspecialchars($acc); ?>" class="btn-account <?php echo $acc === 'CIF' ? 'cif' : ''; ?>">
@@ -72,6 +71,16 @@ if (!isset($_SESSION['username'])) {
     </div>
 
     <div class="login-footer">~ m.h.r ~</div>
+
+    <?php if(isset($login_error)): ?>
+    <script>
+        Swal.fire({
+            icon: 'error',
+            title: 'Gagal Login',
+            text: '<?php echo $login_error; ?>'
+        });
+    </script>
+    <?php endif; ?>
 </body>
 </html>
 <?php
@@ -225,6 +234,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>STOCK OPNAME - <?php echo htmlspecialchars($currentUser); ?></title>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --danger: #e74c3c; --success: #27ae60; }
         body { font-family: sans-serif; margin: 0; padding-bottom: 60px; background-color: #f8f9fa; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
@@ -324,10 +334,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         #queryPopup.pop-in { opacity: 1; transform: translate(-50%, 0) scale(1); }
         .btn-query-action { background-color: var(--success); width: 100%; margin-top: 5px; }
         .group-header { background-color: #34495e; color: #fff; padding: 8px 12px; font-weight: bold; font-size: 13px; margin-top: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-
-        .alert-message { display: none; padding: 10px; border-radius: 6px; font-size: 13px; font-weight: bold; margin-bottom: 12px; text-align: center; }
-        .alert-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .alert-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         
         .text-right { text-align: right; }
         
@@ -336,6 +342,11 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         .btn-action-edit:hover { background-color: #d35400; }
         .btn-action-delete:hover { background-color: #c0392b; }
         .action-cell { white-space: nowrap; text-align: center; }
+
+        .row-highlight {
+            background-color: #fff3cd !important;
+            transition: background-color 0.5s ease;
+        }
     </style>
 </head>
 <body>
@@ -448,7 +459,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         </div>
 
         <div id="tab3" class="tab-content">
-            <div id="stokAlert" class="alert-message"></div>
             <div id="lastInputContainer" class="last-item-box" style="display: none;">
                 <div class="last-item-title">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
@@ -477,7 +487,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         </div>
 
         <div id="tab4" class="tab-content">
-            <div id="queryAlert" class="alert-message"></div>
             <div class="filter-section" style="display: flex; gap: 5px;">
                 <button class="btn-cari" onclick="calculateSelisih()">Proses</button>
             </div>
@@ -499,7 +508,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         </div>
 
         <div id="tab6" class="tab-content">
-            <div id="directInputAlert" class="alert-message"></div>
             <div class="filter-section">
                 <h3 style="margin-top:0; color: var(--primary);">Input Satuan PLU</h3>
                 <label>Input PLU</label>
@@ -524,7 +532,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         </div>
 
         <div id="tab7" class="tab-content">
-            <div id="bulkInputAlert" class="alert-message"></div>
             <div class="filter-section">
                 <h3 style="margin-top:0; color: var(--primary);">Input Banyak PLU</h3>
                 <label>Paste Data Item ( PLU Selisih )</label>
@@ -548,7 +555,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     </footer>
 
     <div id="popup">
-        <div id="popupAlert" class="alert-message"></div>
         <p id="popText" style="margin-top:0; font-weight:bold;"></p>
         <input type="text" id="stokInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Input Stok SO">
         <div class="popup-action-group">
@@ -559,7 +565,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     </div>
 
     <div id="queryPopup">
-        <div id="queryPopupAlert" class="alert-message"></div>
         <p id="queryPopText" style="margin-top:0; font-weight:bold;"></p>
         <input type="text" id="querySalesInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Input Query Sales">
         <button class="btn-query-action" onclick="prosesTambahQuery()">Tambah</button>
@@ -574,17 +579,16 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         let currentUploadedData = { listPlus: [], listMinus: [], grandTotalPlus: 0, grandTotalMinus: 0 };
         let isSubMenuUnlocked = false;
 
-        function showAlert(elementId, message, isSuccess = true, duration = 3000) {
-            const el = document.getElementById(elementId);
-            if (!el) return;
-            el.innerText = message;
-            el.className = 'alert-message ' + (isSuccess ? 'alert-success' : 'alert-error');
-            el.style.display = 'block';
-            if (duration > 0) {
-                setTimeout(() => {
-                    el.style.display = 'none';
-                }, duration);
-            }
+        function showAlert(message, isSuccess = true, duration = 3000) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: isSuccess ? 'success' : 'error',
+                title: message,
+                showConfirmButton: false,
+                timer: duration,
+                timerProgressBar: true
+            });
         }
 
         function updateRealtimeTime() {
@@ -611,19 +615,28 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             document.getElementById('sidebarOverlay').classList.toggle('show');
         }
 
-        function toggleSubMenu() {
+        async function toggleSubMenu() {
             const subContainer = document.getElementById('subMenuContainer');
             const arrowIcon = document.getElementById('arrowIcon');
 
             if (!subContainer.classList.contains('show')) {
                 if (!isSubMenuUnlocked) {
-                    const pass = prompt("Masukkan kode akses untuk membuka :");
+                    const { value: pass } = await Swal.fire({
+                        title: 'Akses Dibatasi',
+                        text: 'Masukkan kode akses untuk membuka:',
+                        input: 'password',
+                        inputPlaceholder: 'Kode Akses',
+                        showCancelButton: true,
+                        confirmButtonText: 'Submit',
+                        cancelButtonText: 'Batal'
+                    });
+
                     if (pass === "@@@@") {
                         isSubMenuUnlocked = true;
+                    } else if (pass !== undefined) {
+                        Swal.fire('Gagal', 'Kode akses salah !', 'error');
+                        return;
                     } else {
-                        if (pass !== null) {
-                            alert("Kode akses salah !");
-                        }
                         return;
                     }
                 }
@@ -661,13 +674,13 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                         processLoadedData(result.data);
                         statusData.innerText = `Menggunakan : ${file.name} (${result.data.length} item loaded)`;
                         statusData.style.color = "var(--success)";
-                        alert("Data stok berhasil dipasang ! Silakan lanjut ke menu pilih modis ...");
+                        Swal.fire('Berhasil', 'Data stok berhasil dipasang ! Silakan lanjut ke menu pilih modis ...', 'success');
                         switchTab(1); 
                     } else {
-                        alert("Format file JSON salah atau field 'data' tidak ditemukan.");
+                        Swal.fire('Error', "Format file JSON salah atau field 'data' tidak ditemukan.", 'error');
                     }
                 } catch (err) {
-                    alert("Gagal membaca file. Pastikan file berformat JSON valid!");
+                    Swal.fire('Error', 'Gagal membaca file. Pastikan file berformat JSON valid!', 'error');
                 }
                 loader.style.display = 'none';
                 input.value = ""; 
@@ -675,16 +688,25 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             reader.readAsText(file);
         }
 
-        function switchTab(idx) {
+        async function switchTab(idx) {
             if (idx === 5 || idx === 6 || idx === 7) {
                 if (!isSubMenuUnlocked) {
-                    const pass = prompt("Masukkan kode akses Menu Lainnya:");
+                    const { value: pass } = await Swal.fire({
+                        title: 'Akses Dibatasi',
+                        text: 'Masukkan kode akses Menu Lainnya:',
+                        input: 'password',
+                        inputPlaceholder: 'Kode Akses',
+                        showCancelButton: true,
+                        confirmButtonText: 'Submit',
+                        cancelButtonText: 'Batal'
+                    });
+
                     if (pass === "@@@@") {
                         isSubMenuUnlocked = true;
+                    } else if (pass !== undefined) {
+                        Swal.fire('Gagal', 'Kode akses salah!', 'error');
+                        return;
                     } else {
-                        if (pass !== null) {
-                            alert("Kode akses salah!");
-                        }
                         return;
                     }
                 }
@@ -828,7 +850,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 toggleScanner();
                 searchAction();
             } else {
-                alert("Barcode tidak valid. Hanya angka yang diperbolehkan.");
+                Swal.fire('Peringatan', 'Barcode tidak valid. Hanya angka yang diperbolehkan.', 'warning');
             }
         }
 
@@ -837,14 +859,14 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         function searchAction() {
             const search = document.getElementById('searchInput').value.trim();
             if (!search) {
-                alert("Masukkan angka pencarian terlebih dahulu !");
+                Swal.fire('Peringatan', 'Masukkan angka pencarian terlebih dahulu !', 'warning');
                 return;
             }
             const filtered = getFilteredData().filter(i => i.PLUMD.includes(search) || i.BARCD.includes(search));
             const uniqueResults = []; const seen = new Set();
             filtered.forEach(i => { if(!seen.has(i.PLUMD)) { uniqueResults.push(i); seen.add(i.PLUMD); } });
 
-            if(uniqueResults.length === 0) alert("Data tidak ditemukan.");
+            if(uniqueResults.length === 0) Swal.fire('Informasi', 'Data tidak ditemukan.', 'info');
             else if(uniqueResults.length === 1) openPopup(uniqueResults[0]);
             else {
                 document.getElementById('searchResultContainer').style.display = 'block';
@@ -933,22 +955,44 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             let rawVal = document.getElementById('querySalesInput').value;
             let queryVal = parseInt(rawVal);
             if (isNaN(queryVal) || queryVal <= 0) {
-                showAlert('queryPopupAlert', 'Masukkan jumlah query yang valid!', false);
+                showAlert('Masukkan jumlah query yang valid!', false);
                 return;
             }
 
             let currentStok = parseInt(dataInputan.get(currentQueryPlumd)) || 0;
             let totalStok = currentStok + queryVal;
 
+            let listTarget = currentResults[currentQueryType] || [];
+            let currentIndex = listTarget.findIndex(i => i.PLUMD === currentQueryPlumd);
+            let nextPlumd = null;
+
+            if (currentIndex !== -1 && currentIndex + 1 < listTarget.length) {
+                nextPlumd = listTarget[currentIndex + 1].PLUMD;
+            }
+
             let result = await updateDbStok(currentQueryPlumd, totalStok);
 
             if (result && result.success) {
                 dataInputan.set(currentQueryPlumd, totalStok);
-                showAlert('queryAlert', 'Berhasil menambahkan query sales!', true);
+                
+                showAlert('Query berhasil ditambahkan!', true, 3000);
                 closeQueryPopup();
                 calculateSelisih();
+
+                if (nextPlumd) {
+                    setTimeout(() => {
+                        let nextRow = document.querySelector(`tr[data-plumd="${nextPlumd}"]`);
+                        if (nextRow) {
+                            nextRow.classList.add('row-highlight');
+                            nextRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            setTimeout(() => {
+                                nextRow.classList.remove('row-highlight');
+                            }, 3500);
+                        }
+                    }, 100);
+                }
             } else {
-                showAlert('queryPopupAlert', 'Gagal menyimpan ke database! Data batal ditambahkan.', false);
+                showAlert('Gagal menyimpan ke database! Data batal ditambahkan.', false);
             }
         }
 
@@ -982,7 +1026,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             let rawVal = document.getElementById('stokInput').value;
             let val = parseInt(rawVal);
             if (isNaN(val) || val <= 0) {
-                showAlert('popupAlert', 'Jumlah stok tidak boleh kosong atau 0!', false);
+                showAlert('Jumlah stok tidak boleh kosong atau 0!', false);
                 return;
             }
 
@@ -994,10 +1038,10 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             if (result && result.success) {
                 dataInputan.set(window.currentItem.PLUMD, totalStok); 
                 updateLastInputDisplay(window.currentItem, totalStok);
-                showAlert('stokAlert', 'Stok berhasil ditambahkan!', true);
+                showAlert('Stok berhasil ditambahkan!', true);
                 resetForm();
             } else {
-                showAlert('popupAlert', 'Gagal menyimpan ke database! Data batal ditambahkan.', false);
+                showAlert('Gagal menyimpan ke database! Data batal ditambahkan.', false);
             }
         }
 
@@ -1006,7 +1050,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             let rawVal = document.getElementById('stokInput').value;
             let inputMinus = parseInt(rawVal);
             if (isNaN(inputMinus) || inputMinus <= 0) {
-                showAlert('popupAlert', 'Jumlah stok pengurangan tidak valid!', false);
+                showAlert('Jumlah stok pengurangan tidak valid!', false);
                 return;
             }
 
@@ -1017,10 +1061,10 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             if (result && result.success) {
                 dataInputan.set(window.currentItem.PLUMD, totalStok);
                 updateLastInputDisplay(window.currentItem, totalStok);
-                showAlert('stokAlert', 'Stok berhasil dikurangi!', true);
+                showAlert('Stok berhasil dikurangi!', true);
                 resetForm();
             } else {
-                showAlert('popupAlert', 'Gagal memperbarui ke database! Data batal dikurangi.', false);
+                showAlert('Gagal memperbarui ke database! Data batal dikurangi.', false);
             }
         }
 
@@ -1058,7 +1102,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     selisihStr = `-${stokLpp}`;
                 }
 
-                return `<tr><td>${i.NAMA_RAK.substring(0,6)}-${i.NOSHELF}-${i.KIRIKANAN}</td><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${stokLpp}</td><td>${stokFisikVal ?? ""}</td><td>${selisihStr}</td></tr>`;
+                return `<tr data-plumd="${i.PLUMD}"><td>${i.NAMA_RAK.substring(0,6)}-${i.NOSHELF}-${i.KIRIKANAN}</td><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${stokLpp}</td><td>${stokFisikVal ?? ""}</td><td>${selisihStr}</td></tr>`;
             }).join('');
         }
 
@@ -1088,12 +1132,12 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         function createTable(title, data, isSelisih, isBelum, type) {
             if(data.length === 0) return "";
-            return `<div class="selisih-title">${title}</div><div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th>Stok LPP</th>${isSelisih ? '<th>Selisih</th>' : ''}<th>Query</th></tr></thead><tbody>${data.map(i => `<tr><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${i.stokLpp}</td>${isSelisih ? `<td>${i.selisih > 0 ? '+' : ''}${i.selisih}</td>` : ''}<td><button style="background:var(--accent); padding:4px 8px; font-size:10px;" onclick="openQueryPopup('${i.PLUMD}', '${i.DESC2.replace(/'/g, "\\'")}', '${type}')">Input</button></td></tr>`).join('')}</tbody></table></div>`;
+            return `<div class="selisih-title">${title}</div><div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th>Stok LPP</th>${isSelisih ? '<th>Selisih</th>' : ''}<th>Query</th></tr></thead><tbody>${data.map(i => `<tr data-plumd="${i.PLUMD}"><td>${i.PLUMD}</td><td>${i.DESC2}</td><td>${i.stokLpp}</td>${isSelisih ? `<td>${i.selisih > 0 ? '+' : ''}${i.selisih}</td>` : ''}<td><button style="background:var(--accent); padding:4px 8px; font-size:10px;" onclick="openQueryPopup('${i.PLUMD}', '${i.DESC2.replace(/'/g, "\\'")}', '${type}')">Input</button></td></tr>`).join('')}</tbody></table></div>`;
         }
 
         function copyAllResults() {
             if (currentResults.plus.length === 0 && currentResults.minus.length === 0 && currentResults.belum.length === 0) {
-                alert("Silakan buka menu 'Hitung Selisih SO' lalu klik tombol 'Proses' terlebih dahulu !");
+                Swal.fire('Peringatan', "Silakan buka menu 'Hitung Selisih SO' lalu klik tombol 'Proses' terlebih dahulu !", 'warning');
                 return;
             }
 
@@ -1133,12 +1177,12 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
-            alert("Semua data berhasil disalin !");
+            Swal.fire('Berhasil', 'Semua data berhasil disalin !', 'success');
         }
 
         async function uploadToMysql() {
             if (currentResults.plus.length === 0 && currentResults.minus.length === 0 && currentResults.belum.length === 0) {
-                alert("Silakan buka menu 'Hitung Selisih SO' lalu klik tombol 'Proses' terlebih dahulu !");
+                Swal.fire('Peringatan', "Silakan buka menu 'Hitung Selisih SO' lalu klik tombol 'Proses' terlebih dahulu !", 'warning');
                 return;
             }
 
@@ -1158,13 +1202,20 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             });
 
             if (payloadItems.length === 0) {
-                alert("Tidak ada item selisih yang ditemukan untuk di-upload.");
+                Swal.fire('Informasi', 'Tidak ada item selisih yang ditemukan untuk di-upload.', 'info');
                 return;
             }
 
-            if (!confirm(`Apakah kamu yakin ingin meng-upload ${payloadItems.length} data hasil selisih ke MySQL database?`)) {
-                return;
-            }
+            const confirmRes = await Swal.fire({
+                title: 'Konfirmasi Upload',
+                text: `Apakah kamu yakin ingin meng-upload ${payloadItems.length} data hasil selisih ke MySQL database?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Upload!',
+                cancelButtonText: 'Batal'
+            });
+
+            if (!confirmRes.isConfirmed) return;
 
             const loader = document.getElementById('loader');
             loader.style.display = 'block';
@@ -1181,12 +1232,12 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 const result = await response.json();
 
                 if (result.success) {
-                    alert("Berhasil meng-upload data hasil selisih ke database MySQL!");
+                    Swal.fire('Berhasil', 'Berhasil meng-upload data hasil selisih ke database MySQL!', 'success');
                 } else {
-                    alert("Gagal meng-upload data: " + (result.message || 'Terjadi kesalahan server'));
+                    Swal.fire('Gagal', 'Gagal meng-upload data: ' + (result.message || 'Terjadi kesalahan server'), 'error');
                 }
             } catch (e) {
-                alert("Terjadi kesalahan koneksi saat meng-upload data ke MySQL.");
+                Swal.fire('Error', 'Terjadi kesalahan koneksi saat meng-upload data ke MySQL.', 'error');
             } finally {
                 loader.style.display = 'none';
             }
@@ -1197,26 +1248,26 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             const rawSelisih = document.getElementById('directSelisihInput').value.trim();
 
             if (!inputPlu) {
-                showAlert('directInputAlert', 'Ketik PLU item terlebih dahulu!', false);
+                showAlert('Ketik PLU item terlebih dahulu!', false);
                 return;
             }
 
             if (rawSelisih === "" || isNaN(parseInt(rawSelisih))) {
-                showAlert('directInputAlert', 'Masukkan jumlah selisih (+ atau -) yang valid!', false);
+                showAlert('Masukkan jumlah selisih (+ atau -) yang valid!', false);
                 return;
             }
 
             const selisihVal = parseInt(rawSelisih);
 
             if (fullData.length === 0) {
-                showAlert('directInputAlert', 'Data stok (JSON) belum di-load! Silakan input file JSON terlebih dahulu di menu awal.', false);
+                showAlert('Data stok (JSON) belum di-load! Silakan input file JSON terlebih dahulu di menu awal.', false);
                 return;
             }
 
             const foundItem = fullData.find(item => item.PLUMD === inputPlu);
 
             if (!foundItem) {
-                showAlert('directInputAlert', `Gagal! Item PLU ${inputPlu} TIDAK DITEMUKAN di data stok.`, false);
+                showAlert(`Gagal! Item PLU ${inputPlu} TIDAK DITEMUKAN di data stok.`, false);
                 document.getElementById('directResultInfo').style.display = 'none';
                 return;
             }
@@ -1237,7 +1288,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 const result = await response.json();
 
                 if (result.success) {
-                    showAlert('directInputAlert', `Berhasil! Item PLU ${inputPlu} terproses dan tersimpan.`, true);
+                    showAlert(`Berhasil! Item PLU ${inputPlu} terproses dan tersimpan.`, true);
                     
                     document.getElementById('directItemDesc').innerText = foundItem.DESC2 || '-';
                     document.getElementById('directItemPlu').innerText = inputPlu;
@@ -1247,10 +1298,10 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     document.getElementById('directPluInput').value = "";
                     document.getElementById('directSelisihInput').value = "";
                 } else {
-                    showAlert('directInputAlert', 'Gagal memproses item: ' + (result.message || 'Terjadi kesalahan server'), false);
+                    showAlert('Gagal memproses item: ' + (result.message || 'Terjadi kesalahan server'), false);
                 }
             } catch (e) {
-                showAlert('directInputAlert', 'Terjadi kesalahan koneksi saat memproses data item.', false);
+                showAlert('Terjadi kesalahan koneksi saat memproses data item.', false);
             } finally {
                 loader.style.display = 'none';
             }
@@ -1260,12 +1311,12 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             const rawText = document.getElementById('bulkDataInput').value.trim();
 
             if (!rawText) {
-                showAlert('bulkInputAlert', 'Ketik atau tempel data item terlebih dahulu!', false);
+                showAlert('Ketik atau tempel data item terlebih dahulu!', false);
                 return;
             }
 
             if (fullData.length === 0) {
-                showAlert('bulkInputAlert', 'Data stok (JSON) belum di-load! Silakan input file JSON terlebih dahulu di menu awal.', false);
+                showAlert('Data stok (JSON) belum di-load! Silakan input file JSON terlebih dahulu di menu awal.', false);
                 return;
             }
 
@@ -1304,7 +1355,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 if (invalidFormatCount > 0) {
                     errorMsg += ' Periksa kembali format teks.';
                 }
-                showAlert('bulkInputAlert', errorMsg, false);
+                showAlert(errorMsg, false);
                 return;
             }
 
@@ -1332,13 +1383,13 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                         msg += ` (` + details.join(', ') + ` diabaikan)`;
                     }
                     
-                    showAlert('bulkInputAlert', msg, true, 5000);
+                    showAlert(msg, true, 5000);
                     document.getElementById('bulkDataInput').value = "";
                 } else {
-                    showAlert('bulkInputAlert', 'Gagal memproses bulk: ' + (result.message || 'Terjadi kesalahan server'), false);
+                    showAlert('Gagal memproses bulk: ' + (result.message || 'Terjadi kesalahan server'), false);
                 }
             } catch (e) {
-                showAlert('bulkInputAlert', 'Terjadi kesalahan koneksi saat memproses data bulk.', false);
+                showAlert('Terjadi kesalahan koneksi saat memproses data bulk.', false);
             } finally {
                 loader.style.display = 'none';
             }
@@ -1349,11 +1400,20 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         }
 
         async function editUploadedItem(id, plumd, currentSelisih) {
-            let val = prompt(`Edit nilai selisih untuk PLU ${plumd}:`, currentSelisih);
-            if (val === null) return;
+            const { value: val } = await Swal.fire({
+                title: 'Edit Selisih',
+                text: `Edit nilai selisih untuk PLU ${plumd}:`,
+                input: 'number',
+                inputValue: currentSelisih,
+                showCancelButton: true,
+                confirmButtonText: 'Simpan',
+                cancelButtonText: 'Batal'
+            });
+
+            if (val === undefined) return;
             let newSelisih = parseInt(val);
             if (isNaN(newSelisih)) {
-                alert("Masukkan angka selisih yang valid!");
+                Swal.fire('Peringatan', 'Masukkan angka selisih yang valid!', 'warning');
                 return;
             }
 
@@ -1373,22 +1433,29 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 const result = await response.json();
 
                 if (result.success) {
-                    alert("Selisih item berhasil diperbarui!");
+                    Swal.fire('Berhasil', 'Selisih item berhasil diperbarui!', 'success');
                     loadUploadedItems();
                 } else {
-                    alert("Gagal memperbarui selisih: " + (result.message || 'Terjadi kesalahan server'));
+                    Swal.fire('Gagal', 'Gagal memperbarui selisih: ' + (result.message || 'Terjadi kesalahan server'), 'error');
                 }
             } catch (e) {
-                alert("Terjadi kesalahan koneksi saat merubah data selisih.");
+                Swal.fire('Error', 'Terjadi kesalahan koneksi saat merubah data selisih.', 'error');
             } finally {
                 loader.style.display = 'none';
             }
         }
 
         async function deleteUploadedItem(id, plumd) {
-            if (!confirm(`Apakah kamu yakin ingin menghapus item PLU ${plumd} dari database?`)) {
-                return;
-            }
+            const confirmRes = await Swal.fire({
+                title: 'Konfirmasi Hapus',
+                text: `Apakah kamu yakin ingin menghapus item PLU ${plumd} dari database?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal'
+            });
+
+            if (!confirmRes.isConfirmed) return;
 
             const loader = document.getElementById('loader');
             loader.style.display = 'block';
@@ -1405,22 +1472,30 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 const result = await response.json();
 
                 if (result.success) {
-                    alert("Item berhasil dihapus dari database!");
+                    Swal.fire('Berhasil', 'Item berhasil dihapus dari database!', 'success');
                     loadUploadedItems();
                 } else {
-                    alert("Gagal menghapus item: " + (result.message || 'Terjadi kesalahan server'));
+                    Swal.fire('Gagal', 'Gagal menghapus item: ' + (result.message || 'Terjadi kesalahan server'), 'error');
                 }
             } catch (e) {
-                alert("Terjadi kesalahan koneksi saat menghapus item.");
+                Swal.fire('Error', 'Terjadi kesalahan koneksi saat menghapus item.', 'error');
             } finally {
                 loader.style.display = 'none';
             }
         }
 
         async function resetUploadedItems() {
-            if (!confirm("Apakah kamu yakin ingin MENGHAPUS SEMUA ISI TABEL data item yang di-upload? Tindakan ini tidak dapat dibatalkan!")) {
-                return;
-            }
+            const confirmRes = await Swal.fire({
+                title: 'Reset Semua Data Tabel?',
+                text: 'Apakah kamu yakin ingin MENGHAPUS SEMUA ISI TABEL data item yang di-upload? Tindakan ini tidak dapat dibatalkan!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Ya, Reset!',
+                cancelButtonText: 'Batal'
+            });
+
+            if (!confirmRes.isConfirmed) return;
 
             const loader = document.getElementById('loader');
             loader.style.display = 'block';
@@ -1436,14 +1511,14 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 const result = await response.json();
 
                 if (result.success) {
-                    alert("Semua data di tabel berhasil di-reset!");
+                    Swal.fire('Berhasil', 'Semua data di tabel berhasil di-reset!', 'success');
                     currentUploadedData = { listPlus: [], listMinus: [], grandTotalPlus: 0, grandTotalMinus: 0 };
                     document.getElementById('uploadedItemsContainer').innerHTML = `<div class="status-info">Belum ada data item yang di-upload.</div>`;
                 } else {
-                    alert("Gagal mereset data: " + (result.message || 'Terjadi kesalahan server'));
+                    Swal.fire('Gagal', 'Gagal mereset data: ' + (result.message || 'Terjadi kesalahan server'), 'error');
                 }
             } catch (e) {
-                alert("Terjadi kesalahan koneksi saat mereset isi tabel.");
+                Swal.fire('Error', 'Terjadi kesalahan koneksi saat mereset isi tabel.', 'error');
             } finally {
                 loader.style.display = 'none';
             }
@@ -1451,7 +1526,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         function copyUploadedItemsTable() {
             if (currentUploadedData.listPlus.length === 0 && currentUploadedData.listMinus.length === 0) {
-                alert("Silakan klik tombol 'Lihat Item Yg Di Upload' terlebih dahulu sebelum menyalin data!");
+                Swal.fire('Peringatan', "Silakan klik tombol 'Lihat Item Yg Di Upload' terlebih dahulu sebelum menyalin data!", 'warning');
                 return;
             }
 
@@ -1489,7 +1564,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
-            alert("Isi data tabel berhasil disalin ke clipboard!");
+            Swal.fire('Berhasil', 'Isi data tabel berhasil disalin ke clipboard!', 'success');
         }
 
         async function loadUploadedItems() {
@@ -1563,7 +1638,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                             grandTotalPlus += i.totalHarga;
                             let formattedHarga = formatRupiah(i.harga);
                             let formattedTotal = "+" + formatRupiah(i.totalHarga);
-                            html += `<tr><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>+${i.selisih}</td><td class="text-right" style="color:#27ae60; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button><button class="btn-action-delete" onclick="deleteUploadedItem(${i.id}, '${i.plumd}')">Hapus</button></td></tr>`;
+                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>+${i.selisih}</td><td class="text-right" style="color:#27ae60; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button><button class="btn-action-delete" onclick="deleteUploadedItem(${i.id}, '${i.plumd}')">Hapus</button></td></tr>`;
                         });
                         html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL PLUS :</td><td class="text-right" style="color:#27ae60;">+${formatRupiah(grandTotalPlus)}</td><td></td></tr>`;
                         html += `</tbody></table></div>`;
@@ -1578,7 +1653,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                             grandTotalMinus += i.totalHarga;
                             let formattedHarga = formatRupiah(i.harga);
                             let formattedTotal = "-" + formatRupiah(Math.abs(i.totalHarga));
-                            html += `<tr><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>${i.selisih}</td><td class="text-right" style="color:#e74c3c; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button><button class="btn-action-delete" onclick="deleteUploadedItem(${i.id}, '${i.plumd}')">Hapus</button></td></tr>`;
+                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>${i.selisih}</td><td class="text-right" style="color:#e74c3c; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button><button class="btn-action-delete" onclick="deleteUploadedItem(${i.id}, '${i.plumd}')">Hapus</button></td></tr>`;
                         });
                         html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL MINUS :</td><td class="text-right" style="color:#e74c3c;">-${formatRupiah(Math.abs(grandTotalMinus))}</td><td></td></tr>`;
                         html += `</tbody></table></div>`;
@@ -1595,17 +1670,27 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
                     container.innerHTML = html;
                 } else {
-                    alert("Gagal mengambil data: " + (result.message || 'Terjadi kesalahan server'));
+                    Swal.fire('Gagal', 'Gagal mengambil data: ' + (result.message || 'Terjadi kesalahan server'), 'error');
                 }
             } catch (e) {
-                alert("Terjadi kesalahan koneksi saat mengambil data item di-upload.");
+                Swal.fire('Error', 'Terjadi kesalahan koneksi saat mengambil data item di-upload.', 'error');
             } finally {
                 loader.style.display = 'none';
             }
         }
 
         async function resetUserProgress() {
-            if (confirm("Apakah kamu yakin ingin menghapus SEMUA hasil progres inputan stok untuk akun ini ? Tindakan ini tidak dapat dibatalkan ...")) {
+            const confirmRes = await Swal.fire({
+                title: 'Reset Inputan?',
+                text: 'Apakah kamu yakin ingin menghapus SEMUA hasil progres inputan stok untuk akun ini ? Tindakan ini tidak dapat dibatalkan ...',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Ya, Reset!',
+                cancelButtonText: 'Batal'
+            });
+
+            if (confirmRes.isConfirmed) {
                 try {
                     const formData = new FormData();
                     formData.append('action', 'reset');
@@ -1624,13 +1709,13 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                         localStorage.removeItem('so_last_input');
                         checkLastInputDisplay();
                         document.getElementById('hasilProses').innerHTML = "";
-                        alert("Semua progres inputan kamu berhasil direset !");
+                        Swal.fire('Berhasil', 'Semua progres inputan kamu berhasil direset !', 'success');
                         switchTab(1);
                     } else {
-                        alert("Gagal meriset data, Coba beberapa saat lagi ...");
+                        Swal.fire('Gagal', 'Gagal meriset data, Coba beberapa saat lagi ...', 'error');
                     }
                 } catch (e) {
-                    alert("Terjadi kesalahan koneksi saat meriset data ...");
+                    Swal.fire('Error', 'Terjadi kesalahan koneksi saat meriset data ...', 'error');
                 }
             }
         }
