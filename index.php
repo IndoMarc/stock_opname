@@ -42,7 +42,7 @@ if (!isset($_SESSION['username'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pilih Akun SO</title>
+    <title>Stock Opname</title>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body { font-family: sans-serif; background-color: #f8f9fa; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; }
@@ -394,7 +394,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             </button>
             <button class="tab-btn" id="btn3" onclick="switchTab(3)" disabled>
                 <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                Input Stok SO
+                Input Qty SO
             </button>
             <button class="tab-btn" id="btn4" onclick="switchTab(4)" disabled>
                 <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
@@ -402,23 +402,23 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             </button>
             <button class="tab-btn" id="btn2" onclick="switchTab(2)" disabled>
                 <svg viewBox="0 0 24 24"><path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/></svg>
-                Hasil Selisih SO
+                Hasil Akhir SO
             </button>
             
             <button class="tab-btn" id="btnMore" onclick="toggleSubMenu()">
                 <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-                Menu Lainnya
+                Database MySQL
                 <svg class="arrow-icon" id="arrowIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
             </button>
             
             <div class="sub-menu-container" id="subMenuContainer">
                 <button class="sub-tab-btn" id="btn6" onclick="switchTab(6)">
                     <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    Input Satuan PLU
+                    Upload Satuan PLU
                 </button>
                 <button class="sub-tab-btn" id="btn7" onclick="switchTab(7)">
                     <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 4h16v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
-                    Input Banyak PLU
+                    Upload Banyak PLU
                 </button>
                 <button class="sub-tab-btn" id="btn5" onclick="switchTab(5)">
                     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
@@ -495,7 +495,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         <div id="tab2" class="tab-content">
             <div class="filter-section" style="display: flex; gap: 5px; margin-bottom: 10px;">
                 <button class="btn-cari" style="background-color: #27ae60;" onclick="copyAllResults()">Salin Hasil Selisih</button>
-                <button class="btn-cari" style="background-color: var(--danger);" onclick="resetUserProgress()">Reset Inputan</button>
+                <button class="btn-cari" style="background-color: var(--danger);" onclick="resetUserProgress()">Reset Inputan Qty SO</button>
                 <button class="btn-cari" style="background-color: #f39c12;" onclick="uploadToMysql()">Upload Ke MySQL</button>
             </div>
             <div class="table-container">
@@ -508,7 +508,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         <div id="tab6" class="tab-content">
             <div class="filter-section">
-                <h3 style="margin-top:0; color: var(--primary);">Input Satuan PLU</h3>
+                <h3 style="margin-top:0; color: var(--primary);">Upload Satuan PLU</h3>
                 <label>Input PLU</label>
                 <input type="text" id="directPluInput" inputmode="numeric" placeholder="Ketik PLU">
                 
@@ -532,7 +532,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         <div id="tab7" class="tab-content">
             <div class="filter-section">
-                <h3 style="margin-top:0; color: var(--primary);">Input Banyak PLU</h3>
+                <h3 style="margin-top:0; color: var(--primary);">Upload Banyak PLU</h3>
                 <label>Ketik Atau Paste Data Item ( PLU Selisih )</label>
                 <textarea id="bulkDataInput" rows="10" placeholder="Contoh : &#10;20134253 -1&#10;10000073 -2&#10;10040122 +1"></textarea>
                 <button class="btn-cari" style="background-color: var(--accent); margin-top: 5px;" onclick="processBulkItemInput()">Proses</button>
@@ -541,9 +541,9 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         <div id="tab5" class="tab-content">
             <div class="filter-section" style="display: flex; gap: 10px;">
-                <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Lihat Item Di Database</button>
-                <button class="btn-cari" style="background-color: #27ae60; flex: 1;" onclick="copyUploadedItemsTable()">Salin Isi Data</button>
-                <button class="btn-cari" style="background-color: #e74c3c; flex: 1;" onclick="resetUploadedItems()">Reset Data Tabel</button>
+                <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Lihat Item Database</button>
+                <button class="btn-cari" style="background-color: #27ae60; flex: 1;" onclick="copyUploadedItemsTable()">Salin Isi Database</button>
+                <button class="btn-cari" style="background-color: #e74c3c; flex: 1;" onclick="resetUploadedItems()">Reset Isi Database</button>
             </div>
             <div id="uploadedItemsContainer"></div>
         </div>
@@ -555,7 +555,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
     <div id="popup">
         <p id="popText" style="margin-top:0; font-weight:bold;"></p>
-        <input type="text" id="stokInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Input Stok SO">
+        <input type="text" id="stokInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Input Qty SO">
         <div class="popup-action-group">
             <button class="btn-kurang" onclick="kurangStok()">Kurang</button>
             <button class="btn-tambah" onclick="simpanStok()">Tambah</button>
@@ -622,7 +622,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 if (!isSubMenuUnlocked) {
                     const { value: pass } = await Swal.fire({
                         title: 'Akses Dibatasi',
-                        text: 'Masukkan kode akses untuk membuka:',
+                        text: 'Masukkan kode akses untuk membuka :',
                         input: 'password',
                         inputPlaceholder: 'Kode Akses',
                         showCancelButton: true,
