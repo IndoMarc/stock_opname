@@ -235,6 +235,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     <title>STOCK OPNAME - <?php echo htmlspecialchars($currentUser); ?></title>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --danger: #e74c3c; --success: #27ae60; }
         body { font-family: sans-serif; margin: 0; padding-bottom: 60px; background-color: #f8f9fa; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; }
@@ -337,15 +338,29 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         
         .text-right { text-align: right; }
         
-        .btn-action-edit { background-color: #f39c12; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; margin-right: 4px; }
-        .btn-action-delete { background-color: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; }
+        .btn-action-edit { background-color: #f39c12; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; }
         .btn-action-edit:hover { background-color: #d35400; }
-        .btn-action-delete:hover { background-color: #c0392b; }
         .action-cell { white-space: nowrap; text-align: center; }
 
         .row-highlight {
             background-color: #fff3cd !important;
             transition: background-color 0.5s ease;
+        }
+
+        .bulk-success-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 8px;
+            border-top: 1px dashed #c3e6cb;
+            padding-top: 8px;
+        }
+        .bulk-success-item {
+            font-size: 12px;
+            color: #333;
+            padding: 3px 0;
+            border-bottom: 1px dotted #e0e0e0;
+            display: flex;
+            justify-content: space-between;
         }
     </style>
 </head>
@@ -362,7 +377,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         <div class="header-title-container">
             <h2>STOCK OPNAME</h2>
         </div>
-        <a href="https://indomaret.wasmer.app/" class="btn-header-external" title="Buka Link">
+        <a href="https://indomarc.github.io/index/" class="btn-header-external" title="Buka Link">
             <svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
         </a>
     </header>
@@ -537,12 +552,19 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 <textarea id="bulkDataInput" rows="10" placeholder="Contoh : &#10;20134253 -1&#10;10000073 -2&#10;10040122 +1"></textarea>
                 <button class="btn-cari" style="background-color: var(--accent); margin-top: 5px;" onclick="processBulkItemInput()">Proses</button>
             </div>
+            <div id="bulkResultInfo" class="last-item-box" style="display: none;">
+                <div class="last-item-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    Item Berhasil Terproses (<span id="bulkSuccessCount">0</span>)
+                </div>
+                <div class="bulk-success-list" id="bulkSuccessList"></div>
+            </div>
         </div>
 
         <div id="tab5" class="tab-content">
             <div class="filter-section" style="display: flex; gap: 10px;">
                 <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Lihat Item Database</button>
-                <button class="btn-cari" style="background-color: #27ae60; flex: 1;" onclick="copyUploadedItemsTable()">Salin Isi Database</button>
+                <button class="btn-cari" style="background-color: #27ae60; flex: 1;" onclick="exportUploadedItemsToExcel()">Ekspor Isi Database</button>
                 <button class="btn-cari" style="background-color: #e74c3c; flex: 1;" onclick="resetUploadedItems()">Reset Isi Database</button>
             </div>
             <div id="uploadedItemsContainer"></div>
@@ -1334,10 +1356,14 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 return;
             }
 
-            const validPlumdSet = new Set(fullData.map(item => item.PLUMD));
+            const mapFullData = new Map();
+            fullData.forEach(item => {
+                mapFullData.set(item.PLUMD, item.DESC2 || '-');
+            });
 
             const lines = rawText.split('\n');
             const payloadItems = [];
+            const successItemsInfo = [];
             let notFoundCount = 0;
             let invalidFormatCount = 0;
 
@@ -1351,8 +1377,13 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     const selisih = parseInt(parts[1].trim());
 
                     if (plumd && !isNaN(selisih)) {
-                        if (validPlumdSet.has(plumd)) {
+                        if (mapFullData.has(plumd)) {
                             payloadItems.push({ plumd: plumd, selisih: selisih });
+                            successItemsInfo.push({
+                                plumd: plumd,
+                                desc: mapFullData.get(plumd),
+                                selisih: selisih
+                            });
                         } else {
                             notFoundCount++;
                         }
@@ -1370,6 +1401,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     errorMsg += ' Periksa kembali format teks.';
                 }
                 showAlert(errorMsg, false);
+                document.getElementById('bulkResultInfo').style.display = 'none';
                 return;
             }
 
@@ -1399,6 +1431,16 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     
                     showAlert(msg, true, 5000);
                     document.getElementById('bulkDataInput').value = "";
+
+                    document.getElementById('bulkSuccessCount').innerText = successItemsInfo.length;
+                    const listContainer = document.getElementById('bulkSuccessList');
+                    listContainer.innerHTML = successItemsInfo.map(item => `
+                        <div class="bulk-success-item">
+                            <div><b>${item.plumd}</b> - ${item.desc}</div>
+                            <div><span class="last-item-stok">${item.selisih > 0 ? '+' : ''}${item.selisih}</span></div>
+                        </div>
+                    `).join('');
+                    document.getElementById('bulkResultInfo').style.display = 'block';
                 } else {
                     showAlert('Gagal memproses bulk: ' + (result.message || 'Terjadi kesalahan server'), false);
                 }
@@ -1459,45 +1501,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             }
         }
 
-        async function deleteUploadedItem(id, plumd) {
-            const confirmRes = await Swal.fire({
-                title: 'Konfirmasi Hapus',
-                text: `Apakah kamu yakin ingin menghapus item PLU ${plumd} dari database?`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Ya, Hapus!',
-                cancelButtonText: 'Batal'
-            });
-
-            if (!confirmRes.isConfirmed) return;
-
-            const loader = document.getElementById('loader');
-            loader.style.display = 'block';
-
-            try {
-                const formData = new FormData();
-                formData.append('action', 'delete_uploaded_item');
-                formData.append('id', id);
-
-                const response = await fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    Swal.fire('Berhasil', 'Item berhasil dihapus dari database!', 'success');
-                    loadUploadedItems();
-                } else {
-                    Swal.fire('Gagal', 'Gagal menghapus item: ' + (result.message || 'Terjadi kesalahan server'), 'error');
-                }
-            } catch (e) {
-                Swal.fire('Error', 'Terjadi kesalahan koneksi saat menghapus item.', 'error');
-            } finally {
-                loader.style.display = 'none';
-            }
-        }
-
         async function resetUploadedItems() {
             const confirmRes = await Swal.fire({
                 title: 'Reset Semua Data Tabel?',
@@ -1538,47 +1541,146 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             }
         }
 
-        function copyUploadedItemsTable() {
+        function exportUploadedItemsToExcel() {
             if (currentUploadedData.listPlus.length === 0 && currentUploadedData.listMinus.length === 0) {
-                Swal.fire('Peringatan', "Silakan klik tombol 'Lihat Item Yg Di Upload' terlebih dahulu sebelum menyalin data!", 'warning');
+                Swal.fire('Peringatan', "Silakan klik tombol 'Lihat Item Database' terlebih dahulu sebelum mengekspor data!", 'warning');
                 return;
             }
 
-            let text = "```\n";
-            text += "LIST ITEM YANG DI SO\n";
+            let htmlTable = `<table id="tempExportTable" style="text-align: left;">`;
 
-            text += "\nLIST ITEM PLUS (+)\n";
-            text += "--------------------------------------------------\n";
+            // Tabel 1 (Item Plus)
+            htmlTable += `
+                <thead>
+                    <tr>
+                        <th style="text-align: left;">PLU</th>
+                        <th style="text-align: left;">Deskripsi</th>
+                        <th style="text-align: left;">Harga Normal</th>
+                        <th style="text-align: left;">Selisih</th>
+                        <th style="text-align: left;">Total Harga</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            let maxLengths = [10, 10, 15, 10, 15];
+
             if (currentUploadedData.listPlus.length > 0) {
                 currentUploadedData.listPlus.forEach(i => {
-                    text += `${i.plumd} | ${i.desc} | Harga: ${formatRupiah(i.harga)} | Selisih: +${i.selisih} | Total: +${formatRupiah(i.totalHarga)}\n`;
+                    let strHarga = String(i.harga);
+                    let strSelisih = String(i.selisih);
+                    let strTotal = String(i.totalHarga);
+
+                    htmlTable += `
+                        <tr>
+                            <td style="text-align: left; mso-number-format:'\\@';">${i.plumd}</td>
+                            <td style="text-align: left; mso-number-format:'\\@';">${i.desc}</td>
+                            <td style="text-align: left; mso-number-format:'\\@';">${strHarga}</td>
+                            <td style="text-align: left; mso-number-format:'\\@';">${strSelisih}</td>
+                            <td style="text-align: left; mso-number-format:'\\@';">${strTotal}</td>
+                        </tr>`;
+
+                    maxLengths[0] = Math.max(maxLengths[0], String(i.plumd).length + 2);
+                    maxLengths[1] = Math.max(maxLengths[1], String(i.desc).length);
+                    maxLengths[2] = Math.max(maxLengths[2], strHarga.length);
+                    maxLengths[3] = Math.max(maxLengths[3], strSelisih.length);
+                    maxLengths[4] = Math.max(maxLengths[4], strTotal.length);
                 });
-                text += `\nGRAND TOTAL PLUS : +${formatRupiah(currentUploadedData.grandTotalPlus)}\n`;
+                
+                let strGrandTotalPlus = String(currentUploadedData.grandTotalPlus);
+                htmlTable += `
+                    <tr>
+                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">TOTAL</td>
+                        <td style="text-align: left;"></td>
+                        <td style="text-align: left;"></td>
+                        <td style="text-align: left;"></td>
+                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">${strGrandTotalPlus}</td>
+                    </tr>`;
             } else {
-                text += "Tidak ada item plus.\n";
+                htmlTable += `<tr><td colspan="5" style="text-align: left;">Tidak ada item plus.</td></tr>`;
             }
 
-            text += "\nLIST ITEM MINUS (-)\n";
-            text += "--------------------------------------------------\n";
+            // Pemisah Baris Kosong
+            htmlTable += `<tr><td colspan="5" style="text-align: left;"></td></tr>`;
+
+            // Tabel 2 (Item Minus)
+            htmlTable += `
+                <tr>
+                    <th style="text-align: left;">PLU</th>
+                    <th style="text-align: left;">Deskripsi</th>
+                    <th style="text-align: left;">Harga Normal</th>
+                    <th style="text-align: left;">Selisih</th>
+                    <th style="text-align: left;">Total Harga</th>
+                </tr>`;
+
             if (currentUploadedData.listMinus.length > 0) {
                 currentUploadedData.listMinus.forEach(i => {
-                    text += `${i.plumd} | ${i.desc} | Harga: ${formatRupiah(i.harga)} | Selisih: ${i.selisih} | Total: -${formatRupiah(Math.abs(i.totalHarga))}\n`;
-                });
-                text += `\nGRAND TOTAL MINUS : -${formatRupiah(Math.abs(currentUploadedData.grandTotalMinus))}\n`;
-            } else {
-                text += "Tidak ada item minus.\n";
-            }
-            text += "```";
+                    let strHarga = String(i.harga);
+                    let strSelisih = String(i.selisih);
+                    let strTotal = String(i.totalHarga);
 
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            textArea.style.position = "fixed";
-            textArea.style.left = "-9999px";
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            Swal.fire('Berhasil', 'Isi data tabel berhasil disalin ke clipboard!', 'success');
+                    htmlTable += `
+                        <tr>
+                            <td style="text-align: left; mso-number-format:'\\@';">${i.plumd}</td>
+                            <td style="text-align: left; mso-number-format:'\\@';">${i.desc}</td>
+                            <td style="text-align: left; mso-number-format:'\\@';">${strHarga}</td>
+                            <td style="text-align: left; mso-number-format:'\\@';">${strSelisih}</td>
+                            <td style="text-align: left; mso-number-format:'\\@';">${strTotal}</td>
+                        </tr>`;
+
+                    maxLengths[0] = Math.max(maxLengths[0], String(i.plumd).length + 2);
+                    maxLengths[1] = Math.max(maxLengths[1], String(i.desc).length);
+                    maxLengths[2] = Math.max(maxLengths[2], strHarga.length);
+                    maxLengths[3] = Math.max(maxLengths[3], strSelisih.length);
+                    maxLengths[4] = Math.max(maxLengths[4], strTotal.length);
+                });
+
+                let strGrandTotalMinus = String(currentUploadedData.grandTotalMinus);
+                htmlTable += `
+                    <tr>
+                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">TOTAL</td>
+                        <td style="text-align: left;"></td>
+                        <td style="text-align: left;"></td>
+                        <td style="text-align: left;"></td>
+                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">${strGrandTotalMinus}</td>
+                    </tr>`;
+            } else {
+                htmlTable += `<tr><td colspan="5" style="text-align: left;">Tidak ada item minus.</td></tr>`;
+            }
+
+            htmlTable += `</tbody></table>`;
+
+            const tempDiv = document.createElement('div');
+            tempDiv.style.display = 'none';
+            tempDiv.innerHTML = htmlTable;
+            document.body.appendChild(tempDiv);
+
+            const tableElem = document.getElementById('tempExportTable');
+            
+            // Menggunakan { raw: true } agar semua data dibaca sebagai Teks Murni (sehingga otomatis Rata Kiri di Excel)
+            const worksheet = XLSX.utils.table_to_sheet(tableElem, { raw: true });
+
+            // Set Lebar Kolom (Auto Fit Column Widths)
+            worksheet['!cols'] = maxLengths.map(len => ({ wch: len + 4 }));
+
+            // Format timestamp file
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const day = pad(now.getDate());
+            const month = pad(now.getMonth() + 1);
+            const year = now.getFullYear();
+            const hours = pad(now.getHours());
+            const minutes = pad(now.getMinutes());
+            
+            const timestampStr = `${day}${month}${year}${hours}${minutes}`;
+            const fileName = `hasil_so_${timestampStr}.xlsx`;
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Hasil SO");
+
+            XLSX.writeFile(workbook, fileName);
+
+            document.body.removeChild(tempDiv);
+            Swal.fire('Berhasil', `Data berhasil diekspor ke ${fileName}!`, 'success');
         }
 
         async function loadUploadedItems() {
@@ -1652,7 +1754,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                             grandTotalPlus += i.totalHarga;
                             let formattedHarga = formatRupiah(i.harga);
                             let formattedTotal = "+" + formatRupiah(i.totalHarga);
-                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>+${i.selisih}</td><td class="text-right" style="color:#27ae60; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button><button class="btn-action-delete" onclick="deleteUploadedItem(${i.id}, '${i.plumd}')">Hapus</button></td></tr>`;
+                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>+${i.selisih}</td><td class="text-right" style="color:#27ae60; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button></td></tr>`;
                         });
                         html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL PLUS :</td><td class="text-right" style="color:#27ae60;">+${formatRupiah(grandTotalPlus)}</td><td></td></tr>`;
                         html += `</tbody></table></div>`;
@@ -1667,7 +1769,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                             grandTotalMinus += i.totalHarga;
                             let formattedHarga = formatRupiah(i.harga);
                             let formattedTotal = "-" + formatRupiah(Math.abs(i.totalHarga));
-                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>${i.selisih}</td><td class="text-right" style="color:#e74c3c; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button><button class="btn-action-delete" onclick="deleteUploadedItem(${i.id}, '${i.plumd}')">Hapus</button></td></tr>`;
+                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>${i.selisih}</td><td class="text-right" style="color:#e74c3c; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button></td></tr>`;
                         });
                         html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL MINUS :</td><td class="text-right" style="color:#e74c3c;">-${formatRupiah(Math.abs(grandTotalMinus))}</td><td></td></tr>`;
                         html += `</tbody></table></div>`;
