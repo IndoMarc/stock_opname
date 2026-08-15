@@ -232,7 +232,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STOCK OPNAME - <?php echo htmlspecialchars($currentUser); ?></title>
+    <title>Stock Opname - <?php echo htmlspecialchars($currentUser); ?></title>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -312,10 +312,17 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         .last-item-box { background: #eef7ed; border: 1px solid #c3e6cb; border-radius: 10px; padding: 12px 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .last-item-title { font-size: 11px; font-weight: bold; color: #27ae60; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
         .last-item-desc { font-size: 14px; font-weight: bold; color: var(--primary); margin-bottom: 2px; word-break: break-word; }
-        .last-item-detail { font-size: 12px; color: #555; display: flex; justify-content: space-between; align-items: center; }
+        .last-item-detail { font-size: 12px; color: #555; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px; }
         .last-item-stok { font-weight: bold; color: #27ae60; background: #d4edda; padding: 2px 8px; border-radius: 4px; font-size: 13px; }
+        .last-item-history { font-size: 11px; color: #7f8c8d; background: #e8f4f8; padding: 2px 6px; border-radius: 4px; border: 1px solid #d0e1e8; }
 
-        #popup { display: none; position: fixed; top: 25%; left: 50%; transform: translate(-50%, -20px) scale(0.9); opacity: 0; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10000; width: 85%; max-width: 400px; transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .popup-img-container { width: 100%; text-align: center; margin-bottom: 10px; min-height: 100px; display: flex; align-items: center; justify-content: center; background: #f9f9f9; border-radius: 8px; overflow: hidden; border: 1px solid #eee; }
+        .popup-img-container img { max-width: 120px; max-height: 120px; object-fit: contain; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); z-index: 9999; display: none; opacity: 0; transition: opacity 0.3s ease; }
+        .modal-overlay.show { display: block; opacity: 1; }
+
+        #popup { display: none; position: fixed; top: 15%; left: 50%; transform: translate(-50%, -20px) scale(0.9); opacity: 0; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10000; width: 85%; max-width: 400px; transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
         #popup.show { display: block; }
         #popup.pop-in { opacity: 1; transform: translate(-50%, 0) scale(1); }
         
@@ -330,7 +337,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         .selisih-title { margin-top: 20px; font-weight: bold; color: var(--primary); padding-left: 5px; }
         .status-info { font-size: 12px; color: #555; margin-top: 10px; text-align: center; font-style: italic; }
 
-        #queryPopup { display: none; position: fixed; top: 25%; left: 50%; transform: translate(-50%, -20px) scale(0.9); opacity: 0; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10001; width: 85%; max-width: 400px; transition: opacity 0.3s ease, transform 0.3s ease; }
+        #queryPopup { display: none; position: fixed; top: 15%; left: 50%; transform: translate(-50%, -20px) scale(0.9); opacity: 0; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10001; width: 85%; max-width: 400px; transition: opacity 0.3s ease, transform 0.3s ease; }
         #queryPopup.show { display: block; }
         #queryPopup.pop-in { opacity: 1; transform: translate(-50%, 0) scale(1); }
         .btn-query-action { background-color: var(--success); width: 100%; margin-top: 5px; }
@@ -369,6 +376,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     <div id="loader"><div class="loader-content"><div class="spinner"></div>Sedang memuat data ...</div></div>
 
     <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <div id="modalOverlay" class="modal-overlay" onclick="closePopup(); closeQueryPopup();"></div>
 
     <header class="main-header">
         <button class="menu-toggle" onclick="toggleSidebar()">
@@ -429,15 +437,15 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             <div class="sub-menu-container" id="subMenuContainer">
                 <button class="sub-tab-btn" id="btn6" onclick="switchTab(6)">
                     <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    Upload Satuan PLU
+                    Upload Item v1
                 </button>
                 <button class="sub-tab-btn" id="btn7" onclick="switchTab(7)">
                     <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 4h16v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
-                    Upload Banyak PLU
+                    Upload Item v2
                 </button>
                 <button class="sub-tab-btn" id="btn5" onclick="switchTab(5)">
                     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                    List Item Yg Sudah Di SO
+                    Isi Database MySQL
                 </button>
             </div>
         </div>
@@ -482,7 +490,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 <div id="lastItemDesc" class="last-item-desc">-</div>
                 <div class="last-item-detail">
                     <span>PLU : <b id="lastItemPlu">-</b></span>
-                    <span>Qty Input : <span id="lastItemStok" class="last-item-stok">0</span></span>
+                    <span>Qty Input : <span id="lastItemStok" class="last-item-stok">0</span> <span id="lastItemHistory" class="last-item-history"></span></span>
                 </div>
             </div>
 
@@ -563,7 +571,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         <div id="tab5" class="tab-content">
             <div class="filter-section" style="display: flex; gap: 10px;">
-                <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Lihat Item Database</button>
+                <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Lihat Isi Database</button>
                 <button class="btn-cari" style="background-color: #27ae60; flex: 1;" onclick="exportUploadedItemsToExcel()">Ekspor Isi Database</button>
                 <button class="btn-cari" style="background-color: #e74c3c; flex: 1;" onclick="resetUploadedItems()">Reset Isi Database</button>
             </div>
@@ -576,6 +584,9 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     </footer>
 
     <div id="popup">
+        <div class="popup-img-container">
+            <img id="popImg" src="" alt="Gambar Item" referrerpolicy="no-referrer" onerror="this.style.display='none';">
+        </div>
         <p id="popText" style="margin-top:0; font-weight:bold;"></p>
         <input type="text" id="stokInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Input Qty SO">
         <div class="popup-action-group">
@@ -586,6 +597,9 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     </div>
 
     <div id="queryPopup">
+        <div class="popup-img-container">
+            <img id="queryPopImg" src="" alt="Gambar Item" referrerpolicy="no-referrer" onerror="this.style.display='none';">
+        </div>
         <p id="queryPopText" style="margin-top:0; font-weight:bold;"></p>
         <input type="text" id="querySalesInput" inputmode="numeric" pattern="[0-8]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" placeholder="Input Query Sales">
         <button class="btn-query-action" onclick="prosesTambahQuery()">Tambah</button>
@@ -941,14 +955,20 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         function openPopup(item) { 
             window.currentItem = item; 
-            document.getElementById('popText').innerText = "Produk : " + item.DESC2; 
+            document.getElementById('popText').innerText = item.PLUMD + " - " + item.DESC2; 
             
+            const imgElem = document.getElementById('popImg');
+            imgElem.style.display = 'block';
+            imgElem.src = `https://cdn-klik.klikindomaret.com/klik-catalog/product/${item.PLUMD}_1.jpg`;
+
+            document.getElementById('modalOverlay').classList.add('show');
             const pop = document.getElementById('popup');
             pop.classList.add('show'); 
             setTimeout(() => pop.classList.add('pop-in'), 10);
         }
         
         function closePopup() { 
+            document.getElementById('modalOverlay').classList.remove('show');
             const pop = document.getElementById('popup');
             pop.classList.remove('pop-in');
             setTimeout(() => pop.classList.remove('show'), 300);
@@ -957,14 +977,21 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         function openQueryPopup(plumd, desc, type) {
             currentQueryPlumd = plumd;
             currentQueryType = type;
-            document.getElementById('queryPopText').innerText = "Produk : " + desc;
+            document.getElementById('queryPopText').innerText = plumd + " - " + desc;
             document.getElementById('querySalesInput').value = "";
+            
+            const qimgElem = document.getElementById('queryPopImg');
+            qimgElem.style.display = 'block';
+            qimgElem.src = `https://cdn-klik.klikindomaret.com/klik-catalog/product/${plumd}_1.jpg`;
+
+            document.getElementById('modalOverlay').classList.add('show');
             const qpop = document.getElementById('queryPopup');
             qpop.style.display = 'block';
             setTimeout(() => qpop.classList.add('pop-in'), 10);
         }
 
         function closeQueryPopup() {
+            document.getElementById('modalOverlay').classList.remove('show');
             const qpop = document.getElementById('queryPopup');
             qpop.classList.remove('pop-in');
             setTimeout(() => qpop.style.display = 'none', 300);
@@ -1032,11 +1059,26 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             }
         }
 
-        function updateLastInputDisplay(item, totalStok) {
+        function updateLastInputDisplay(item, totalStok, valChange) {
+            let historyList = [];
+            const savedLast = localStorage.getItem('so_last_input');
+            if (savedLast) {
+                try {
+                    const parsed = JSON.parse(savedLast);
+                    if (parsed.plumd === item.PLUMD && Array.isArray(parsed.history)) {
+                        historyList = parsed.history;
+                    }
+                } catch(e) {}
+            }
+            if (valChange !== undefined) {
+                historyList.push(valChange > 0 ? `+${valChange}` : `${valChange}`);
+            }
+
             const lastData = {
                 desc: item.DESC2,
                 plumd: item.PLUMD,
-                stok: totalStok
+                stok: totalStok,
+                history: historyList
             };
             localStorage.setItem('so_last_input', JSON.stringify(lastData));
             checkLastInputDisplay();
@@ -1051,6 +1093,15 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     document.getElementById('lastItemDesc').innerText = parsed.desc;
                     document.getElementById('lastItemPlu').innerText = parsed.plumd;
                     document.getElementById('lastItemStok').innerText = parsed.stok;
+                    
+                    const histElem = document.getElementById('lastItemHistory');
+                    if (parsed.history && parsed.history.length > 0) {
+                        histElem.innerText = `(${parsed.history.join(' ')})`;
+                        histElem.style.display = 'inline-block';
+                    } else {
+                        histElem.innerText = '';
+                        histElem.style.display = 'none';
+                    }
                     container.style.display = 'block';
                 } catch(e) {}
             } else {
@@ -1073,7 +1124,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             
             if (result && result.success) {
                 dataInputan.set(window.currentItem.PLUMD, totalStok); 
-                updateLastInputDisplay(window.currentItem, totalStok);
+                updateLastInputDisplay(window.currentItem, totalStok, val);
                 showAlert('Stok berhasil ditambahkan!', true);
                 resetForm();
             } else {
@@ -1096,7 +1147,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             if (result && result.success) {
                 dataInputan.set(window.currentItem.PLUMD, totalStok);
-                updateLastInputDisplay(window.currentItem, totalStok);
+                updateLastInputDisplay(window.currentItem, totalStok, -inputMinus);
                 showAlert('Stok berhasil dikurangi!', true);
                 resetForm();
             } else {
@@ -1426,7 +1477,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     if (invalidFormatCount > 0) details.push(`${invalidFormatCount} format salah`);
                     
                     if (details.length > 0) {
-                        msg += ` (` + details.join(', ') + ` diabaikan)`;
+                        msg += ` (` + details.join(', ') + ` diabaikan) `;
                     }
                     
                     showAlert(msg, true, 5000);
@@ -1445,7 +1496,7 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     showAlert('Gagal memproses bulk: ' + (result.message || 'Terjadi kesalahan server'), false);
                 }
             } catch (e) {
-                showAlert('Terjadi kesalahan koneksi saat memproses data bulk.', false);
+                showAlert('Terjadi kesalahan koneksi meproses data bulk.', false);
             } finally {
                 loader.style.display = 'none';
             }
