@@ -111,9 +111,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         try {
             $plumd = $_POST['plumd'];
             $stok = (int)$_POST['stok'];
+            $history = $_POST['history'] ?? '[]';
             
-            $stmt = $pdo->prepare("INSERT INTO stok_fisik_user (plumd, username, stok_fisik) VALUES (:plumd, :username, :stok) ON DUPLICATE KEY UPDATE stok_fisik = :stok");
-            $stmt->execute(['plumd' => $plumd, 'username' => $currentUser, 'stok' => $stok]);
+            $stmt = $pdo->prepare("INSERT INTO stok_fisik_user (plumd, username, stok_fisik, history) VALUES (:plumd, :username, :stok, :history) ON DUPLICATE KEY UPDATE stok_fisik = :stok, history = :history");
+            $stmt->execute(['plumd' => $plumd, 'username' => $currentUser, 'stok' => $stok, 'history' => $history]);
             echo json_encode(['success' => true]);
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -223,9 +224,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 $savedData = [];
-$stmt = $pdo->prepare("SELECT plumd, stok_fisik FROM stok_fisik_user WHERE username = :username");
+$stmt = $pdo->prepare("SELECT plumd, stok_fisik, history FROM stok_fisik_user WHERE username = :username");
 $stmt->execute(['username' => $currentUser]);
-$savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    $savedData[$row['plumd']] = [
+        'stok_fisik' => $row['stok_fisik'],
+        'history' => json_decode($row['history'] ?? '[]', true)
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -310,11 +316,14 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         .btn-upload { background-color: var(--success); width: 100%; }
         
         .last-item-box { background: #eef7ed; border: 1px solid #c3e6cb; border-radius: 10px; padding: 12px 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        .last-item-title { font-size: 11px; font-weight: bold; color: #27ae60; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
-        .last-item-desc { font-size: 14px; font-weight: bold; color: var(--primary); margin-bottom: 2px; word-break: break-word; }
-        .last-item-detail { font-size: 12px; color: #555; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 5px; }
-        .last-item-stok { font-weight: bold; color: #27ae60; background: #d4edda; padding: 2px 8px; border-radius: 4px; font-size: 13px; }
-        .last-item-history { font-size: 11px; color: #7f8c8d; background: #e8f4f8; padding: 2px 6px; border-radius: 4px; border: 1px solid #d0e1e8; }
+        .last-item-title { font-size: 11px; font-weight: bold; color: #27ae60; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+        .last-item-table-wrapper { width: 100%; overflow-x: auto; background: #fff; border-radius: 6px; border: 1px solid #c3e6cb; margin-bottom: 8px; }
+        .last-item-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .last-item-table th { background: #27ae60; color: #fff; font-weight: bold; padding: 6px 8px; text-align: left; }
+        .last-item-table td { padding: 6px 8px; border-top: 1px solid #e8f4f8; color: var(--primary); word-break: break-word; }
+        .last-item-stok { font-weight: bold; color: #27ae60; background: #d4edda; padding: 2px 8px; border-radius: 4px; font-size: 12px; display: inline-block; }
+        .last-item-history-wrapper { font-size: 12px; color: #555; background: #fdfdfd; border: 1px dashed #c3e6cb; padding: 6px 10px; border-radius: 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .last-item-history { font-size: 11px; color: #2c3e50; font-weight: bold; background: #e8f4f8; padding: 2px 6px; border-radius: 4px; border: 1px solid #d0e1e8; }
 
         .popup-img-container { width: 100%; text-align: center; margin-bottom: 10px; min-height: 100px; display: flex; align-items: center; justify-content: center; background: #f9f9f9; border-radius: 8px; overflow: hidden; border: 1px solid #eee; }
         .popup-img-container img { max-width: 120px; max-height: 120px; object-fit: contain; }
@@ -487,10 +496,29 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                     Item terakhir yang di input
                 </div>
-                <div id="lastItemDesc" class="last-item-desc">-</div>
-                <div class="last-item-detail">
-                    <span>PLU : <b id="lastItemPlu">-</b></span>
-                    <span>Qty Input : <span id="lastItemStok" class="last-item-stok">0</span> <span id="lastItemHistory" class="last-item-history"></span></span>
+                <div class="last-item-table-wrapper">
+                    <table class="last-item-table">
+                        <thead>
+                            <tr>
+                                <th>Modis</th>
+                                <th>PLU</th>
+                                <th>Deskripsi</th>
+                                <th>Qty Input</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td id="lastItemModis">-</td>
+                                <td id="lastItemPlu">-</td>
+                                <td id="lastItemDesc">-</td>
+                                <td><span id="lastItemStok" class="last-item-stok">0</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="lastItemHistoryContainer" class="last-item-history-wrapper" style="display: none;">
+                    <span>History :</span>
+                    <span id="lastItemHistory" class="last-item-history"></span>
                 </div>
             </div>
 
@@ -918,6 +946,8 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             if (search !== "" && uniqueResults.length === 1) {
                 openPopup(uniqueResults[0]);
+            } else {
+                closePopup();
             }
 
             if (uniqueResults.length === 0) {
@@ -957,6 +987,9 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             window.currentItem = item; 
             document.getElementById('popText').innerText = item.PLUMD + " - " + item.DESC2; 
             
+            let currentStok = dataInputan.has(item.PLUMD) ? (dataInputan.get(item.PLUMD).stok_fisik || "") : "";
+            document.getElementById('stokInput').value = "";
+
             const imgElem = document.getElementById('popImg');
             imgElem.style.display = 'block';
             imgElem.src = `https://cdn-klik.klikindomaret.com/klik-catalog/product/${item.PLUMD}_1.jpg`;
@@ -997,12 +1030,13 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             setTimeout(() => qpop.style.display = 'none', 300);
         }
 
-        async function updateDbStok(plumd, newStok) {
+        async function updateDbStok(plumd, newStok, historyArr) {
             try {
                 const formData = new FormData();
                 formData.append('action', 'save');
                 formData.append('plumd', plumd);
                 formData.append('stok', newStok);
+                formData.append('history', JSON.stringify(historyArr));
 
                 const res = await fetch(window.location.href, {
                     method: 'POST',
@@ -1022,7 +1056,10 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 return;
             }
 
-            let currentStok = parseInt(dataInputan.get(currentQueryPlumd)) || 0;
+            let itemData = dataInputan.get(currentQueryPlumd) || { stok_fisik: 0, history: [] };
+            let currentStok = parseInt(itemData.stok_fisik) || 0;
+            let historyList = itemData.history || [];
+            historyList.push(`+${queryVal}`);
             let totalStok = currentStok + queryVal;
 
             let listTarget = currentResults[currentQueryType] || [];
@@ -1033,10 +1070,10 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 nextPlumd = listTarget[currentIndex + 1].PLUMD;
             }
 
-            let result = await updateDbStok(currentQueryPlumd, totalStok);
+            let result = await updateDbStok(currentQueryPlumd, totalStok, historyList);
 
             if (result && result.success) {
-                dataInputan.set(currentQueryPlumd, totalStok);
+                dataInputan.set(currentQueryPlumd, { stok_fisik: totalStok, history: historyList });
                 
                 showAlert('Query berhasil ditambahkan!', true, 3000);
                 closeQueryPopup();
@@ -1059,23 +1096,12 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
             }
         }
 
-        function updateLastInputDisplay(item, totalStok, valChange) {
-            let historyList = [];
-            const savedLast = localStorage.getItem('so_last_input');
-            if (savedLast) {
-                try {
-                    const parsed = JSON.parse(savedLast);
-                    if (parsed.plumd === item.PLUMD && Array.isArray(parsed.history)) {
-                        historyList = parsed.history;
-                    }
-                } catch(e) {}
-            }
-            if (valChange !== undefined) {
-                historyList.push(valChange > 0 ? `+${valChange}` : `${valChange}`);
-            }
+        function updateLastInputDisplay(item, totalStok, historyList) {
+            const modisStr = `${item.NAMA_RAK.substring(0,6)}-${item.NOSHELF}-${item.KIRIKANAN}`;
 
             const lastData = {
                 desc: item.DESC2,
+                modis: modisStr,
                 plumd: item.PLUMD,
                 stok: totalStok,
                 history: historyList
@@ -1091,16 +1117,18 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 try {
                     const parsed = JSON.parse(savedLast);
                     document.getElementById('lastItemDesc').innerText = parsed.desc;
+                    document.getElementById('lastItemModis').innerText = parsed.modis || '-';
                     document.getElementById('lastItemPlu').innerText = parsed.plumd;
                     document.getElementById('lastItemStok').innerText = parsed.stok;
                     
+                    const histContainer = document.getElementById('lastItemHistoryContainer');
                     const histElem = document.getElementById('lastItemHistory');
                     if (parsed.history && parsed.history.length > 0) {
                         histElem.innerText = `(${parsed.history.join(' ')})`;
-                        histElem.style.display = 'inline-block';
+                        histContainer.style.display = 'flex';
                     } else {
                         histElem.innerText = '';
-                        histElem.style.display = 'none';
+                        histContainer.style.display = 'none';
                     }
                     container.style.display = 'block';
                 } catch(e) {}
@@ -1117,14 +1145,17 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 return;
             }
 
-            let currentStok = parseInt(dataInputan.get(window.currentItem.PLUMD)) || 0;
+            let itemData = dataInputan.get(window.currentItem.PLUMD) || { stok_fisik: 0, history: [] };
+            let currentStok = parseInt(itemData.stok_fisik) || 0;
+            let historyList = itemData.history || [];
+            historyList.push(`+${val}`);
             let totalStok = currentStok + val;
             
-            let result = await updateDbStok(window.currentItem.PLUMD, totalStok);
+            let result = await updateDbStok(window.currentItem.PLUMD, totalStok, historyList);
             
             if (result && result.success) {
-                dataInputan.set(window.currentItem.PLUMD, totalStok); 
-                updateLastInputDisplay(window.currentItem, totalStok, val);
+                dataInputan.set(window.currentItem.PLUMD, { stok_fisik: totalStok, history: historyList }); 
+                updateLastInputDisplay(window.currentItem, totalStok, historyList);
                 showAlert('Stok berhasil ditambahkan!', true);
                 resetForm();
             } else {
@@ -1133,7 +1164,9 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         }
 
         async function kurangStok() {
-            let currentStok = parseInt(dataInputan.get(window.currentItem.PLUMD)) || 0;
+            let itemData = dataInputan.get(window.currentItem.PLUMD) || { stok_fisik: 0, history: [] };
+            let currentStok = parseInt(itemData.stok_fisik) || 0;
+            let historyList = itemData.history || [];
             let rawVal = document.getElementById('stokInput').value;
             let inputMinus = parseInt(rawVal);
             if (isNaN(inputMinus) || inputMinus <= 0) {
@@ -1141,13 +1174,14 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 return;
             }
 
+            historyList.push(`-${inputMinus}`);
             let totalStok = currentStok - inputMinus;
             
-            let result = await updateDbStok(window.currentItem.PLUMD, totalStok);
+            let result = await updateDbStok(window.currentItem.PLUMD, totalStok, historyList);
 
             if (result && result.success) {
-                dataInputan.set(window.currentItem.PLUMD, totalStok);
-                updateLastInputDisplay(window.currentItem, totalStok, -inputMinus);
+                dataInputan.set(window.currentItem.PLUMD, { stok_fisik: totalStok, history: historyList });
+                updateLastInputDisplay(window.currentItem, totalStok, historyList);
                 showAlert('Stok berhasil dikurangi!', true);
                 resetForm();
             } else {
@@ -1178,7 +1212,8 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 let npbVal = parseInt(i.NPB) || 0;
                 let stokLpp = qtyVal + npbVal;
                 let isInputted = dataInputan.has(i.PLUMD);
-                let stokFisikVal = dataInputan.get(i.PLUMD);
+                let itemData = dataInputan.get(i.PLUMD);
+                let stokFisikVal = itemData ? itemData.stok_fisik : undefined;
                 
                 let selisihStr = "";
                 if (isInputted) {
@@ -1205,7 +1240,8 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                     if(qtySys !== 0) currentResults.belum.push({...item, stokLpp: qtySys}); 
                 }
                 else {
-                    let selisih = parseInt(dataInputan.get(plumd)) - qtySys;
+                    let itemData = dataInputan.get(plumd);
+                    let selisih = parseInt(itemData.stok_fisik) - qtySys;
                     if(selisih > 0) currentResults.plus.push({...item, selisih, stokLpp: qtySys});
                     else if(selisih < 0) currentResults.minus.push({...item, selisih, stokLpp: qtySys});
                     else if(selisih === 0 && qtySys !== 0) {
@@ -1600,7 +1636,6 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             let htmlTable = `<table id="tempExportTable" style="text-align: left;">`;
 
-            // Tabel 1 (Item Plus)
             htmlTable += `
                 <thead>
                     <tr>
@@ -1650,10 +1685,8 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
                 htmlTable += `<tr><td colspan="5" style="text-align: left;">Tidak ada item plus.</td></tr>`;
             }
 
-            // Pemisah Baris Kosong
             htmlTable += `<tr><td colspan="5" style="text-align: left;"></td></tr>`;
 
-            // Tabel 2 (Item Minus)
             htmlTable += `
                 <tr>
                     <th style="text-align: left;">PLU</th>
@@ -1707,13 +1740,10 @@ $savedData = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
             const tableElem = document.getElementById('tempExportTable');
             
-            // Menggunakan { raw: true } agar semua data dibaca sebagai Teks Murni (sehingga otomatis Rata Kiri di Excel)
             const worksheet = XLSX.utils.table_to_sheet(tableElem, { raw: true });
 
-            // Set Lebar Kolom (Auto Fit Column Widths)
             worksheet['!cols'] = maxLengths.map(len => ({ wch: len + 4 }));
 
-            // Format timestamp file
             const now = new Date();
             const pad = (n) => String(n).padStart(2, '0');
             const day = pad(now.getDate());
