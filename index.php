@@ -328,11 +328,10 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         .popup-img-container { width: 100%; text-align: center; margin-bottom: 10px; min-height: 100px; display: flex; align-items: center; justify-content: center; background: #f9f9f9; border-radius: 8px; overflow: hidden; border: 1px solid #eee; }
         .popup-img-container img { max-width: 120px; max-height: 120px; object-fit: contain; }
 
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); z-index: 9999; display: none; opacity: 0; transition: opacity 0.3s ease; }
-        .modal-overlay.show { display: block; opacity: 1; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); z-index: 9999; display: none; opacity: 0; transition: opacity 0.2s ease; }
+        .modal-overlay.show { opacity: 1; }
 
-        #popup { display: none; position: fixed; top: 15%; left: 50%; transform: translate(-50%, -20px) scale(0.9); opacity: 0; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10000; width: 85%; max-width: 400px; transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        #popup.show { display: block; }
+        #popup { display: none; position: fixed; top: 15%; left: 50%; transform: translate(-50%, -20px) scale(0.9); opacity: 0; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10000; width: 85%; max-width: 400px; transition: opacity 0.2s ease, transform 0.2s ease; }
         #popup.pop-in { opacity: 1; transform: translate(-50%, 0) scale(1); }
         
         .popup-action-group { display: flex; gap: 10px; margin-bottom: 5px; }
@@ -346,8 +345,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         .selisih-title { margin-top: 20px; font-weight: bold; color: var(--primary); padding-left: 5px; }
         .status-info { font-size: 12px; color: #555; margin-top: 10px; text-align: center; font-style: italic; }
 
-        #queryPopup { display: none; position: fixed; top: 15%; left: 50%; transform: translate(-50%, -20px) scale(0.9); opacity: 0; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10001; width: 85%; max-width: 400px; transition: opacity 0.3s ease, transform 0.3s ease; }
-        #queryPopup.show { display: block; }
+        #queryPopup { display: none; position: fixed; top: 15%; left: 50%; transform: translate(-50%, -20px) scale(0.9); opacity: 0; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 10001; width: 85%; max-width: 400px; transition: opacity 0.2s ease, transform 0.2s ease; }
         #queryPopup.pop-in { opacity: 1; transform: translate(-50%, 0) scale(1); }
         .btn-query-action { background-color: var(--success); width: 100%; margin-top: 5px; }
         .group-header { background-color: #34495e; color: #fff; padding: 8px 12px; font-weight: bold; font-size: 13px; margin-top: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -437,6 +435,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 Hasil Akhir SO
             </button>
             
+            <?php if ($currentUser === 'CIF'): ?>
             <button class="tab-btn" id="btnMore" onclick="toggleSubMenu()">
                 <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
                 Database MySQL
@@ -457,6 +456,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     Isi Database MySQL
                 </button>
             </div>
+            <?php endif; ?>
         </div>
         
         <a href="?logout=true" class="btn-sidebar-logout">
@@ -557,6 +557,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             </div>
         </div>
 
+        <?php if ($currentUser === 'CIF'): ?>
         <div id="tab6" class="tab-content">
             <div class="filter-section">
                 <h3 style="margin-top:0; color: var(--primary);">Upload Satuan PLU</h3>
@@ -605,6 +606,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             </div>
             <div id="uploadedItemsContainer"></div>
         </div>
+        <?php endif; ?>
     </div>
 
     <footer class="main-footer">
@@ -682,6 +684,8 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             const subContainer = document.getElementById('subMenuContainer');
             const arrowIcon = document.getElementById('arrowIcon');
 
+            if (!subContainer) return;
+
             if (!subContainer.classList.contains('show')) {
                 if (!isSubMenuUnlocked) {
                     const { value: pass } = await Swal.fire({
@@ -706,7 +710,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             }
 
             subContainer.classList.toggle('show');
-            arrowIcon.classList.toggle('rotate');
+            if (arrowIcon) arrowIcon.classList.toggle('rotate');
         }
 
         function processLoadedData(rawData) {
@@ -801,12 +805,17 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             });
 
             const btnMore = document.getElementById('btnMore');
-            if (idx === 5 || idx === 6 || idx === 7) {
-                btnMore.classList.add('active');
-                document.getElementById('subMenuContainer').classList.add('show');
-                document.getElementById('arrowIcon').classList.add('rotate');
-            } else {
-                btnMore.classList.remove('active');
+            const subMenuContainer = document.getElementById('subMenuContainer');
+            const arrowIcon = document.getElementById('arrowIcon');
+
+            if (btnMore) {
+                if (idx === 5 || idx === 6 || idx === 7) {
+                    btnMore.classList.add('active');
+                    if (subMenuContainer) subMenuContainer.classList.add('show');
+                    if (arrowIcon) arrowIcon.classList.add('rotate');
+                } else {
+                    btnMore.classList.remove('active');
+                }
             }
             
             if(idx === 2) renderTable();
@@ -946,8 +955,6 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
             if (search !== "" && uniqueResults.length === 1) {
                 openPopup(uniqueResults[0]);
-            } else {
-                closePopup();
             }
 
             if (uniqueResults.length === 0) {
@@ -987,24 +994,36 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             window.currentItem = item; 
             document.getElementById('popText').innerText = item.PLUMD + " - " + item.DESC2; 
             
-            let currentStok = dataInputan.has(item.PLUMD) ? (dataInputan.get(item.PLUMD).stok_fisik || "") : "";
             document.getElementById('stokInput').value = "";
 
             const imgElem = document.getElementById('popImg');
             imgElem.style.display = 'block';
             imgElem.src = `https://cdn-klik.klikindomaret.com/klik-catalog/product/${item.PLUMD}_1.jpg`;
 
-            document.getElementById('modalOverlay').classList.add('show');
+            const overlay = document.getElementById('modalOverlay');
             const pop = document.getElementById('popup');
-            pop.classList.add('show'); 
-            setTimeout(() => pop.classList.add('pop-in'), 10);
+
+            overlay.style.display = 'block';
+            pop.style.display = 'block'; 
+            
+            setTimeout(() => {
+                overlay.classList.add('show');
+                pop.classList.add('pop-in');
+                document.getElementById('stokInput').focus();
+            }, 20);
         }
         
         function closePopup() { 
-            document.getElementById('modalOverlay').classList.remove('show');
+            const overlay = document.getElementById('modalOverlay');
             const pop = document.getElementById('popup');
+            
             pop.classList.remove('pop-in');
-            setTimeout(() => pop.classList.remove('show'), 300);
+            overlay.classList.remove('show');
+            
+            setTimeout(() => {
+                pop.style.display = 'none';
+                overlay.style.display = 'none';
+            }, 200);
         }
 
         function openQueryPopup(plumd, desc, type) {
@@ -1017,17 +1036,30 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             qimgElem.style.display = 'block';
             qimgElem.src = `https://cdn-klik.klikindomaret.com/klik-catalog/product/${plumd}_1.jpg`;
 
-            document.getElementById('modalOverlay').classList.add('show');
+            const overlay = document.getElementById('modalOverlay');
             const qpop = document.getElementById('queryPopup');
+            
+            overlay.style.display = 'block';
             qpop.style.display = 'block';
-            setTimeout(() => qpop.classList.add('pop-in'), 10);
+            
+            setTimeout(() => {
+                overlay.classList.add('show');
+                qpop.classList.add('pop-in');
+                document.getElementById('querySalesInput').focus();
+            }, 20);
         }
 
         function closeQueryPopup() {
-            document.getElementById('modalOverlay').classList.remove('show');
+            const overlay = document.getElementById('modalOverlay');
             const qpop = document.getElementById('queryPopup');
+            
             qpop.classList.remove('pop-in');
-            setTimeout(() => qpop.style.display = 'none', 300);
+            overlay.classList.remove('show');
+            
+            setTimeout(() => {
+                qpop.style.display = 'none';
+                overlay.style.display = 'none';
+            }, 200);
         }
 
         async function updateDbStok(plumd, newStok, historyArr) {
@@ -1766,6 +1798,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
         async function loadUploadedItems() {
             const container = document.getElementById('uploadedItemsContainer');
+            if (!container) return;
             container.innerHTML = "";
 
             const loader = document.getElementById('loader');
