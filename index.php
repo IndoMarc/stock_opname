@@ -471,7 +471,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     <div class="content-container">
         <div id="tab0" class="tab-content active fade-in">
             <div class="filter-section">
-                <h3 style="margin-top:0; color: var(--primary); text-align:center;">Sambung ke Wifi "anak" lalu ( <a href="http://192.168.137.1:3000/so_hp.html" target="_blank">Klik Disini !</a> ) untuk download data stok</h3>
+                <h3 style="margin-top:0; color: var(--primary); text-align:center;">Sambung ke Wifi "anak" lalu ( <a href="http://192.168.137.1:3000/data_so.html" target="_blank">Klik Disini !</a> ) untuk download data stok</h3>
                 <p style="font-size:12px; color:#666; text-align:center; margin-bottom:15px;"></p>
                 <button style="display: none;" class="btn-download" onclick="downloadDataSO()">Download Data Server (JSON)</button>
                 <div style="border-top: 1px dashed #ccc; margin: 15px 0;"></div>
@@ -642,7 +642,6 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         let currentQueryPlumd = '';
         let currentQueryType = '';
         let currentUploadedData = { listPlus: [], listMinus: [], grandTotalPlus: 0, grandTotalMinus: 0 };
-        let isSubMenuUnlocked = false;
 
         function showAlert(message, isSuccess = true, duration = 3000) {
             Swal.fire({
@@ -680,34 +679,11 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             document.getElementById('sidebarOverlay').classList.toggle('show');
         }
 
-        async function toggleSubMenu() {
+        function toggleSubMenu() {
             const subContainer = document.getElementById('subMenuContainer');
             const arrowIcon = document.getElementById('arrowIcon');
 
             if (!subContainer) return;
-
-            if (!subContainer.classList.contains('show')) {
-                if (!isSubMenuUnlocked) {
-                    const { value: pass } = await Swal.fire({
-                        title: 'Akses Dibatasi',
-                        text: 'Masukkan kode akses untuk membuka :',
-                        input: 'password',
-                        inputPlaceholder: 'Kode Akses',
-                        showCancelButton: true,
-                        confirmButtonText: 'Submit',
-                        cancelButtonText: 'Batal'
-                    });
-
-                    if (pass === "@@@@") {
-                        isSubMenuUnlocked = true;
-                    } else if (pass !== undefined) {
-                        Swal.fire('Gagal', 'Kode akses salah !', 'error');
-                        return;
-                    } else {
-                        return;
-                    }
-                }
-            }
 
             subContainer.classList.toggle('show');
             if (arrowIcon) arrowIcon.classList.toggle('rotate');
@@ -755,30 +731,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             reader.readAsText(file);
         }
 
-        async function switchTab(idx) {
-            if (idx === 5 || idx === 6 || idx === 7) {
-                if (!isSubMenuUnlocked) {
-                    const { value: pass } = await Swal.fire({
-                        title: 'Akses Dibatasi',
-                        text: 'Masukkan kode akses Menu Lainnya:',
-                        input: 'password',
-                        inputPlaceholder: 'Kode Akses',
-                        showCancelButton: true,
-                        confirmButtonText: 'Submit',
-                        cancelButtonText: 'Batal'
-                    });
-
-                    if (pass === "@@@@") {
-                        isSubMenuUnlocked = true;
-                    } else if (pass !== undefined) {
-                        Swal.fire('Gagal', 'Kode akses salah!', 'error');
-                        return;
-                    } else {
-                        return;
-                    }
-                }
-            }
-
+        function switchTab(idx) {
             const tabs = document.querySelectorAll('.tab-content');
             const mainBtns = document.querySelectorAll('.sidebar-menu > .tab-btn');
             const subBtns = document.querySelectorAll('.sub-tab-btn');
