@@ -376,6 +376,18 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             display: flex;
             justify-content: space-between;
         }
+        .summary-box {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #ddd;
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--primary);
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -453,7 +465,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 </button>
                 <button class="sub-tab-btn" id="btn5" onclick="switchTab(5)">
                     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                    Isi Database MySQL
+                    List Item Plus & Minus
                 </button>
             </div>
             <?php endif; ?>
@@ -1809,6 +1821,10 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         }
                     });
 
+                    // Urutkan dari total nominal terbesar ke terkecil
+                    listPlus.sort((a, b) => Math.abs(b.totalHarga) - Math.abs(a.totalHarga));
+                    listMinus.sort((a, b) => Math.abs(b.totalHarga) - Math.abs(a.totalHarga));
+
                     let grandTotalPlus = 0;
                     let grandTotalMinus = 0;
 
@@ -1843,6 +1859,16 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     } else {
                         html += `<div class="selisih-title">LIST ITEM MINUS (-)</div><div class="status-info">Tidak ada item minus.</div>`;
                     }
+
+                    let netTotal = grandTotalPlus + grandTotalMinus;
+                    let netTotalFormatted = (netTotal >= 0 ? "+" : "-") + formatRupiah(Math.abs(netTotal));
+                    let netColor = netTotal >= 0 ? "#27ae60" : "#e74c3c";
+
+                    html += `
+                        <div class="summary-box">
+                            Total Selisih Plus & Minus : <span style="color: ${netColor};">${netTotalFormatted}</span>
+                        </div>
+                    `;
 
                     currentUploadedData = {
                         listPlus: listPlus,
