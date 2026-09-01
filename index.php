@@ -572,7 +572,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         <?php if ($currentUser === 'CIF'): ?>
         <div id="tab6" class="tab-content">
             <div class="filter-section">
-                <h3 style="margin-top:0; color: var(--primary);">Upload Satuan PLU</h3>
+                <h3 style="margin-top:0; text-align: center; color: var(--primary);">Upload Satuan PLU</h3>
                 <label>Input PLU</label>
                 <input type="text" id="directPluInput" inputmode="numeric" placeholder="Ketik PLU">
                 
@@ -596,7 +596,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
         <div id="tab7" class="tab-content">
             <div class="filter-section">
-                <h3 style="margin-top:0; color: var(--primary);">Upload Banyak PLU</h3>
+                <h3 style="margin-top:0; text-align: center; color: var(--primary);">Upload Banyak PLU</h3>
                 <label>Ketik Atau Paste Data Item ( PLU Selisih )</label>
                 <textarea id="bulkDataInput" rows="10" placeholder="Contoh : &#10;20134253 -1&#10;10000073 -2&#10;10040122 +1"></textarea>
                 <button class="btn-cari" style="background-color: var(--accent); margin-top: 5px;" onclick="processBulkItemInput()">Proses</button>
@@ -727,7 +727,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     const result = JSON.parse(e.target.result);
                     if (result && result.data) {
                         processLoadedData(result.data);
-                        statusData.innerText = `Menggunakan : ${file.name} (${result.data.length} item loaded)`;
+                        statusData.innerText = `Menggunakan : ${file.name} ( ${result.data.length} item )`;
                         statusData.style.color = "var(--success)";
                         Swal.fire('Berhasil', 'Data stok berhasil dipasang ! Silakan lanjut ke menu pilih modis ...', 'success');
                         switchTab(1); 
@@ -1939,7 +1939,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 
                 const statusData = document.getElementById('statusData');
                 if (statusData) {
-                    statusData.innerText = `Menggunakan data tersimpan (${fullData.length} item loaded)`;
+                    statusData.innerText = `Menggunakan data tersimpan ( ${fullData.length} item )`;
                     statusData.style.color = "var(--success)";
                 }
             }
