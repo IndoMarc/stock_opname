@@ -2,6 +2,7 @@
 session_start();
 
 $accounts = [
+    'ADMIN',
     'CIF',
     'SSL',
     'SJL',
@@ -10,11 +11,12 @@ $accounts = [
 ];
 
 $roleNames = [
-    'CIF' => 'Chief Of Store',
-    'SSL' => 'Store Senior Leader',
-    'SJL' => 'Store Junior Leader',
-    'SCB' => 'Store Crew Boy',
-    'SCG' => 'Store Crew Girl'
+    'ADMIN' => 'Administrator',
+    'CIF'   => 'Chief Of Store',
+    'SSL'   => 'Store Senior Leader',
+    'SJL'   => 'Store Junior Leader',
+    'SCB'   => 'Store Crew Boy',
+    'SCG'   => 'Store Crew Girl'
 ];
 
 if (isset($_GET['logout'])) {
@@ -52,7 +54,6 @@ if (!isset($_SESSION['username'])) {
         .account-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
         .btn-account { padding: 14px 10px; background: #ffffff; color: #2c3e50; border: 2px solid #e0e6ed; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
         .btn-account:hover { background: #3498db; color: white; border-color: #3498db; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(52, 152, 219, 0.25); }
-        .btn-account.cif { grid-column: 1 / -1; }
         .login-footer { margin-top: 15px; font-size: 13px; color: #7f8c8d; font-weight: 500; }
     </style>
 </head>
@@ -63,7 +64,7 @@ if (!isset($_SESSION['username'])) {
         <h3>Pilih Akun Stock Opname</h3>
         <form method="POST" class="account-grid">
             <?php foreach ($accounts as $acc): ?>
-                <button type="submit" name="username" value="<?php echo htmlspecialchars($acc); ?>" class="btn-account <?php echo $acc === 'CIF' ? 'cif' : ''; ?>">
+                <button type="submit" name="username" value="<?php echo htmlspecialchars($acc); ?>" class="btn-account">
                     <?php echo htmlspecialchars($acc); ?>
                 </button>
             <?php endforeach; ?>
@@ -142,13 +143,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 exit;
             }
 
-            $stmt = $pdo->prepare("INSERT INTO hasil_selisih_so (plumd, selisih) VALUES (:plumd, :selisih)");
-            
+            $stmtGetLast = $pdo->prepare("SELECT selisih FROM hasil_selisih_so WHERE plumd = :plumd ORDER BY id DESC LIMIT 1");
+            $stmtInsert = $pdo->prepare("INSERT INTO hasil_selisih_so (plumd, selisih) VALUES (:plumd, :selisih)");
+            $stmtHist = $pdo->prepare("INSERT INTO history_edit_so (plumd, selisih_lama, selisih_baru) VALUES (:plumd, :selisih_lama, :selisih_baru)");
+
             $pdo->beginTransaction();
             foreach ($items as $item) {
-                $stmt->execute([
-                    'plumd'   => $item['plumd'],
-                    'selisih' => (int)$item['selisih']
+                $plumd = $item['plumd'];
+                $newSelisih = (int)$item['selisih'];
+
+                $stmtGetLast->execute(['plumd' => $plumd]);
+                $oldRow = $stmtGetLast->fetch(PDO::FETCH_ASSOC);
+                $oldSelisih = $oldRow ? (int)$oldRow['selisih'] : 0;
+
+                $stmtInsert->execute([
+                    'plumd'   => $plumd,
+                    'selisih' => $newSelisih
+                ]);
+
+                $stmtHist->execute([
+                    'plumd'        => $plumd,
+                    'selisih_lama' => $oldSelisih,
+                    'selisih_baru' => $newSelisih
                 ]);
             }
             $pdo->commit();
@@ -179,9 +195,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $id = (int)$_POST['id'];
             $newSelisih = (int)$_POST['selisih'];
 
-            $stmt = $pdo->prepare("UPDATE hasil_selisih_so SET selisih = :selisih WHERE id = :id");
-            $stmt->execute(['selisih' => $newSelisih, 'id' => $id]);
-            echo json_encode(['success' => true]);
+            $stmtGet = $pdo->prepare("SELECT plumd, selisih FROM hasil_selisih_so WHERE id = :id");
+            $stmtGet->execute(['id' => $id]);
+            $oldData = $stmtGet->fetch(PDO::FETCH_ASSOC);
+
+            if ($oldData) {
+                $oldSelisih = (int)$oldData['selisih'];
+                $plumd = $oldData['plumd'];
+
+                $stmt = $pdo->prepare("UPDATE hasil_selisih_so SET selisih = :selisih WHERE id = :id");
+                $stmt->execute(['selisih' => $newSelisih, 'id' => $id]);
+
+                $stmtHist = $pdo->prepare("INSERT INTO history_edit_so (plumd, selisih_lama, selisih_baru) VALUES (:plumd, :selisih_lama, :selisih_baru)");
+                $stmtHist->execute([
+                    'plumd' => $plumd,
+                    'selisih_lama' => $oldSelisih,
+                    'selisih_baru' => $newSelisih
+                ]);
+
+                echo json_encode(['success' => true]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Item tidak ditemukan.']);
+            }
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($_POST['action'] === 'get_edit_history') {
+        try {
+            $stmt = $pdo->query("SELECT * FROM history_edit_so ORDER BY created_at DESC");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode(['success' => true, 'data' => $rows]);
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -218,6 +264,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             echo json_encode(['success' => true, 'data' => $rows]);
         } catch (Exception $e) {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($_POST['action'] === 'get_local_stok_json') {
+        $jsonPath = __DIR__ . '/Data_Stok.json';
+        if (file_exists($jsonPath)) {
+            $content = file_get_contents($jsonPath);
+            $parsed = json_decode($content, true);
+            if ($parsed && isset($parsed['data'])) {
+                echo json_encode(['success' => true, 'data' => $parsed['data']]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Format Data_Stok.json tidak sesuai.']);
+            }
+        } else {
+            echo json_encode(['success' => false, 'message' => 'File Data_Stok.json tidak ditemukan di folder server.']);
         }
         exit;
     }
@@ -276,16 +338,6 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         .tab-btn:hover:not(:disabled) { color: #fff; background: rgba(255,255,255,0.04); }
         .tab-btn.active { color: #fff; background: var(--accent); box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3); }
         .tab-btn:disabled { opacity: 0.25; cursor: not-allowed; }
-        
-        .sub-menu-container { display: none; background: rgba(0,0,0,0.2); padding: 5px 0; border-radius: 8px; width: 90%; margin: 0 auto; }
-        .sub-menu-container.show { display: block; }
-        .sub-tab-btn { width: 90%; text-align: left; padding: 10px 15px 10px 35px; margin: 4px auto; cursor: pointer; background: transparent; border: none; font-size: 12px; font-weight: 600; color: #a0aec0; display: flex; align-items: center; gap: 8px; border-radius: 6px; transition: all 0.2s; box-sizing: border-box; }
-        .sub-tab-btn svg { width: 15px; height: 15px; fill: currentColor; flex-shrink: 0; }
-        .sub-tab-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
-        .sub-tab-btn.active { color: #fff; background: #2980b9; }
-
-        .arrow-icon { margin-left: auto; transition: transform 0.3s; }
-        .arrow-icon.rotate { transform: rotate(180deg); }
 
         .sidebar-footer { padding: 15px; border-top: 1px solid rgba(255,255,255,0.08); background: #17212a; text-align: center; }
         .sidebar-time { font-size: 12px; color: #a0aec0; font-weight: 500; line-height: 1.4; }
@@ -388,6 +440,22 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             color: var(--primary);
             text-align: right;
         }
+        .admin-stok-bar {
+            background: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #e0e0e0;
+        }
+        .admin-stok-text {
+            font-size: 12px;
+            color: #333;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -426,6 +494,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         </div>
         
         <div class="sidebar-menu">
+            <?php if ($currentUser !== 'ADMIN'): ?>
             <button class="tab-btn active" id="btn0" onclick="switchTab(0)">
                 <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 Input Data Stok
@@ -446,28 +515,25 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 <svg viewBox="0 0 24 24"><path d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z"/></svg>
                 Hasil Akhir SO
             </button>
+            <?php endif; ?>
             
-            <?php if ($currentUser === 'CIF'): ?>
-            <button class="tab-btn" id="btnMore" onclick="toggleSubMenu()">
-                <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-                Database MySQL
-                <svg class="arrow-icon" id="arrowIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+            <?php if ($currentUser === 'ADMIN'): ?>
+            <button class="tab-btn active" id="btn5" onclick="switchTab(5)">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                List Item Plus & Minus
             </button>
-            
-            <div class="sub-menu-container" id="subMenuContainer">
-                <button class="sub-tab-btn" id="btn6" onclick="switchTab(6)">
-                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    Upload Item v1
-                </button>
-                <button class="sub-tab-btn" id="btn7" onclick="switchTab(7)">
-                    <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 4h16v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
-                    Upload Item v2
-                </button>
-                <button class="sub-tab-btn" id="btn5" onclick="switchTab(5)">
-                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                    List Item Plus & Minus
-                </button>
-            </div>
+            <button class="tab-btn" id="btn6" onclick="switchTab(6)">
+                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                Tambah / Hapus Item v1
+            </button>
+            <button class="tab-btn" id="btn7" onclick="switchTab(7)">
+                <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 4h16v2H4zm0 4h16v2H4zm0 4h10v2H4z"/></svg>
+                Tambah / Hapus Item v2
+            </button>
+            <button class="tab-btn" id="btn8" onclick="switchTab(8)">
+                <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                List History Edit Selisih
+            </button>
             <?php endif; ?>
         </div>
         
@@ -481,6 +547,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     </div>
 
     <div class="content-container">
+        <?php if ($currentUser !== 'ADMIN'): ?>
         <div id="tab0" class="tab-content active fade-in">
             <div class="filter-section">
                 <h3 style="margin-top:0; color: var(--primary); text-align:center;">Sambung ke Wifi "anak" lalu ( <a href="http://192.168.137.1:3000/data_so.html" target="_blank">Klik Disini !</a> ) untuk download data stok</h3>
@@ -568,16 +635,32 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 </table>
             </div>
         </div>
+        <?php endif; ?>
 
-        <?php if ($currentUser === 'CIF'): ?>
+        <?php if ($currentUser === 'ADMIN'): ?>
+        <div id="tab5" class="tab-content active fade-in">
+            <div class="admin-stok-bar">
+                <div class="admin-stok-text" id="adminStokInfo">Status Data Stok: Belum Terisi</div>
+                <input type="file" id="adminFileInput" accept=".json" style="display:none;" onchange="handleAdminJsonUpload(this)">
+                <button style="background: var(--accent); padding: 6px 12px; font-size: 11px; width: auto;" onclick="document.getElementById('adminFileInput').click()">Upload Data_Stok.json</button>
+            </div>
+
+            <div class="filter-section" style="display: flex; gap: 10px;">
+                <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Refresh Isi Database</button>
+                <button class="btn-cari" style="background-color: #27ae60; flex: 1;" onclick="exportUploadedItemsToExcel()">Ekspor Isi Database</button>
+                <button class="btn-cari" style="background-color: #e74c3c; flex: 1;" onclick="resetUploadedItems()">Reset Isi Database</button>
+            </div>
+            <div id="uploadedItemsContainer"></div>
+        </div>
+
         <div id="tab6" class="tab-content">
             <div class="filter-section">
-                <h3 style="margin-top:0; text-align: center; color: var(--primary);">Upload Satuan PLU</h3>
+                <h3 style="margin-top:0; text-align: center; color: var(--primary);">Tambah Atau Hapus Satuan Item</h3>
                 <label>Input PLU</label>
                 <input type="text" id="directPluInput" inputmode="numeric" placeholder="Ketik PLU">
                 
                 <label>Input Selisih (+ atau -)</label>
-                <input type="number" id="directSelisihInput" placeholder="Contoh : 5 atau -3">
+                <input type="number" id="directSelisihInput" placeholder="Contoh : 5, -2, atau 0">
                 
                 <button class="btn-cari" style="background-color: var(--accent); margin-top: 5px;" onclick="processDirectItemInput()">Proses</button>
             </div>
@@ -596,9 +679,9 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
         <div id="tab7" class="tab-content">
             <div class="filter-section">
-                <h3 style="margin-top:0; text-align: center; color: var(--primary);">Upload Banyak PLU</h3>
+                <h3 style="margin-top:0; text-align: center; color: var(--primary);">Tambah Atau Hapus Banyak Item</h3>
                 <label>Ketik Atau Paste Data Item ( PLU Selisih )</label>
-                <textarea id="bulkDataInput" rows="10" placeholder="Contoh : &#10;20134253 -1&#10;10000073 -2&#10;10040122 +1"></textarea>
+                <textarea id="bulkDataInput" rows="10" placeholder="Contoh : &#10;20134253 -1&#10;10000073 0&#10;10040122 +1"></textarea>
                 <button class="btn-cari" style="background-color: var(--accent); margin-top: 5px;" onclick="processBulkItemInput()">Proses</button>
             </div>
             <div id="bulkResultInfo" class="last-item-box" style="display: none;">
@@ -610,13 +693,12 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             </div>
         </div>
 
-        <div id="tab5" class="tab-content">
-            <div class="filter-section" style="display: flex; gap: 10px;">
-                <button class="btn-cari" style="background-color: #3498db; flex: 1;" onclick="loadUploadedItems()">Lihat Isi Database</button>
-                <button class="btn-cari" style="background-color: #27ae60; flex: 1;" onclick="exportUploadedItemsToExcel()">Ekspor Isi Database</button>
-                <button class="btn-cari" style="background-color: #e74c3c; flex: 1;" onclick="resetUploadedItems()">Reset Isi Database</button>
+        <div id="tab8" class="tab-content">
+            <div class="filter-section">
+                
+                <button class="btn-cari" style="background-color: #3498db;" onclick="loadEditHistory()">Refresh History</button>
             </div>
-            <div id="uploadedItemsContainer"></div>
+            <div id="historyEditContainer"></div>
         </div>
         <?php endif; ?>
     </div>
@@ -653,7 +735,8 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         let html5QrcodeScanner;
         let currentQueryPlumd = '';
         let currentQueryType = '';
-        let currentUploadedData = { listPlus: [], listMinus: [], grandTotalPlus: 0, grandTotalMinus: 0 };
+        let currentUploadedData = { groupedData: {}, grandTotalSelisih: 0 };
+        const isAdminUser = <?php echo json_encode($currentUser === 'ADMIN'); ?>;
 
         function showAlert(message, isSuccess = true, duration = 3000) {
             Swal.fire({
@@ -691,26 +774,34 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             document.getElementById('sidebarOverlay').classList.toggle('show');
         }
 
-        function toggleSubMenu() {
-            const subContainer = document.getElementById('subMenuContainer');
-            const arrowIcon = document.getElementById('arrowIcon');
-
-            if (!subContainer) return;
-
-            subContainer.classList.toggle('show');
-            if (arrowIcon) arrowIcon.classList.toggle('rotate');
+        function updateAdminStokInfo() {
+            const infoElem = document.getElementById('adminStokInfo');
+            if (infoElem) {
+                if (fullData.length > 0) {
+                    infoElem.innerText = `Data Stok Aktif : ${fullData.length} item`;
+                    infoElem.style.color = "#27ae60";
+                } else {
+                    infoElem.innerText = "Data Stok : Belum Terisi ( Upload Data_Stok.json )";
+                    infoElem.style.color = "#e74c3c";
+                }
+            }
         }
 
         function processLoadedData(rawData) {
-            fullData = rawData.sort((a, b) => a.NAMA_RAK.localeCompare(b.NAMA_RAK) || parseInt(a.NOSHELF) - parseInt(b.NOSHELF) || parseInt(a.KIRIKANAN) - parseInt(b.KIRIKANAN));
+            fullData = rawData.sort((a, b) => (a.NAMA_RAK || '').localeCompare(b.NAMA_RAK || '') || parseInt(a.NOSHELF || 0) - parseInt(b.NOSHELF || 0) || parseInt(a.KIRIKANAN || 0) - parseInt(b.KIRIKANAN || 0));
             
-            document.getElementById('rakSelect').innerHTML = '<option value="">-- Pilih --</option>';
-            document.getElementById('shelfStart').innerHTML = '<option value="">-- Semua --</option>';
-            document.getElementById('shelfEnd').innerHTML = '<option value="">-- Semua --</option>';
+            const rakSelect = document.getElementById('rakSelect');
+            const shelfStart = document.getElementById('shelfStart');
+            const shelfEnd = document.getElementById('shelfEnd');
+            
+            if (rakSelect) rakSelect.innerHTML = '<option value="">-- Pilih --</option>';
+            if (shelfStart) shelfStart.innerHTML = '<option value="">-- Semua --</option>';
+            if (shelfEnd) shelfEnd.innerHTML = '<option value="">-- Semua --</option>';
             populateFilters();
             
             localStorage.setItem('so_full_data', JSON.stringify(fullData));
             loadSavedFilter();
+            updateAdminStokInfo();
         }
 
         function handleOfflineJson(input) {
@@ -727,8 +818,10 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     const result = JSON.parse(e.target.result);
                     if (result && result.data) {
                         processLoadedData(result.data);
-                        statusData.innerText = `Menggunakan : ${file.name} ( ${result.data.length} item )`;
-                        statusData.style.color = "var(--success)";
+                        if (statusData) {
+                            statusData.innerText = `Menggunakan : ${file.name} ( ${result.data.length} item )`;
+                            statusData.style.color = "var(--success)";
+                        }
                         Swal.fire('Berhasil', 'Data stok berhasil dipasang ! Silakan lanjut ke menu pilih modis ...', 'success');
                         switchTab(1); 
                     } else {
@@ -743,10 +836,54 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             reader.readAsText(file);
         }
 
+        function handleAdminJsonUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            const loader = document.getElementById('loader');
+            
+            loader.style.display = 'block';
+            reader.onload = function(e) {
+                try {
+                    const result = JSON.parse(e.target.result);
+                    if (result && result.data) {
+                        processLoadedData(result.data);
+                        Swal.fire('Berhasil', `Data stok berhasil di-load (${result.data.length} item)!`, 'success');
+                        loadUploadedItems();
+                    } else {
+                        Swal.fire('Error', "Format file JSON salah atau field 'data' tidak ditemukan.", 'error');
+                    }
+                } catch (err) {
+                    Swal.fire('Error', 'Gagal membaca file. Pastikan file berformat JSON valid!', 'error');
+                }
+                loader.style.display = 'none';
+                input.value = ""; 
+            };
+            reader.readAsText(file);
+        }
+
+        async function autoFetchAdminLocalStok() {
+            try {
+                const formData = new FormData();
+                formData.append('action', 'get_local_stok_json');
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    processLoadedData(result.data);
+                }
+            } catch (e) {
+            }
+        }
+
         function switchTab(idx) {
             const tabs = document.querySelectorAll('.tab-content');
             const mainBtns = document.querySelectorAll('.sidebar-menu > .tab-btn');
-            const subBtns = document.querySelectorAll('.sub-tab-btn');
             
             tabs.forEach((t) => {
                 let tabId = parseInt(t.id.replace('tab', ''));
@@ -763,30 +900,17 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 let btnId = parseInt(b.id.replace('btn', ''));
                 b.classList.toggle('active', btnId === idx);
             });
-
-            subBtns.forEach((sb) => {
-                let subId = parseInt(sb.id.replace('btn', ''));
-                sb.classList.toggle('active', subId === idx);
-            });
-
-            const btnMore = document.getElementById('btnMore');
-            const subMenuContainer = document.getElementById('subMenuContainer');
-            const arrowIcon = document.getElementById('arrowIcon');
-
-            if (btnMore) {
-                if (idx === 5 || idx === 6 || idx === 7) {
-                    btnMore.classList.add('active');
-                    if (subMenuContainer) subMenuContainer.classList.add('show');
-                    if (arrowIcon) arrowIcon.classList.add('rotate');
-                } else {
-                    btnMore.classList.remove('active');
-                }
-            }
             
             if(idx === 2) renderTable();
             if(idx === 3) {
                 checkLastInputDisplay();
                 searchAction();
+            }
+            if(idx === 5) {
+                loadUploadedItems();
+            }
+            if(idx === 8) {
+                loadEditHistory();
             }
             
             const sidebar = document.getElementById('sidebar');
@@ -797,7 +921,12 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
         function checkFilter() {
             const isSelected = document.getElementById('rakSelect').value !== "";
-            document.getElementById('btn2').disabled = document.getElementById('btn3').disabled = document.getElementById('btn4').disabled = !isSelected;
+            const btn2 = document.getElementById('btn2');
+            const btn3 = document.getElementById('btn3');
+            const btn4 = document.getElementById('btn4');
+            if(btn2) btn2.disabled = !isSelected;
+            if(btn3) btn3.disabled = !isSelected;
+            if(btn4) btn4.disabled = !isSelected;
         }
 
         function confirmFilter() { 
@@ -817,8 +946,9 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             const savedStart = localStorage.getItem('so_shelf_start');
             const savedEnd = localStorage.getItem('so_shelf_end');
             
-            if (savedRak) {
-                document.getElementById('rakSelect').value = savedRak;
+            const rakSelect = document.getElementById('rakSelect');
+            if (savedRak && rakSelect) {
+                rakSelect.value = savedRak;
                 document.getElementById('shelfStart').value = savedStart || "";
                 document.getElementById('shelfEnd').value = savedEnd || "";
                 checkFilter();
@@ -827,7 +957,9 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         }
 
         function getFilteredData() {
-            const rak = document.getElementById('rakSelect').value;
+            const rakElem = document.getElementById('rakSelect');
+            if(!rakElem) return fullData;
+            const rak = rakElem.value;
             const start = parseInt(document.getElementById('shelfStart').value);
             const end = parseInt(document.getElementById('shelfEnd').value);
             return fullData.filter(i => (rak === "" || i.NAMA_RAK === rak) && (isNaN(start) || parseInt(i.NOSHELF) >= start) && (isNaN(end) || parseInt(i.NOSHELF) <= end));
@@ -835,9 +967,11 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
         function populateFilters() {
             if (fullData.length === 0) return;
+            const rakSelect = document.getElementById('rakSelect');
+            if (!rakSelect) return;
             const raks = [...new Set(fullData.map(i => i.NAMA_RAK))].sort();
             const shelves = [...new Set(fullData.map(i => parseInt(i.NOSHELF)))].filter(n => !isNaN(n)).sort((a,b) => a-b);
-            raks.forEach(r => document.getElementById('rakSelect').innerHTML += `<option value="${r}">${r}</option>`);
+            raks.forEach(r => rakSelect.innerHTML += `<option value="${r}">${r}</option>`);
             shelves.forEach(s => {
                 document.getElementById('shelfStart').innerHTML += `<option value="${s}">${s}</option>`;
                 document.getElementById('shelfEnd').innerHTML += `<option value="${s}">${s}</option>`;
@@ -897,7 +1031,9 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         function onScanFailure(error) {}
 
         function searchAction() {
-            const search = document.getElementById('searchInput').value.trim();
+            const searchInput = document.getElementById('searchInput');
+            if(!searchInput) return;
+            const search = searchInput.value.trim();
             const modisData = getFilteredData();
             
             let filtered = modisData;
@@ -916,6 +1052,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             });
 
             const tbody = document.getElementById('searchResultTable');
+            if(!tbody) return;
             tbody.innerHTML = "";
 
             if (search !== "" && uniqueResults.length === 1) {
@@ -1109,6 +1246,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
         function checkLastInputDisplay() {
             const container = document.getElementById('lastInputContainer');
+            if(!container) return;
             const savedLast = localStorage.getItem('so_last_input');
             if (savedLast) {
                 try {
@@ -1194,6 +1332,8 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         }
 
         function renderTable() {
+            const tableInput = document.getElementById('tableInput');
+            if(!tableInput) return;
             const filtered = getFilteredData();
             const uniqueMap = new Map();
             filtered.forEach(i => { if(!uniqueMap.has(i.PLUMD)) uniqueMap.set(i.PLUMD, i); });
@@ -1204,7 +1344,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                        (parseInt(a.KIRIKANAN) - parseInt(b.KIRIKANAN));
             });
 
-            document.getElementById('tableInput').innerHTML = sortedData.map(i => {
+            tableInput.innerHTML = sortedData.map(i => {
                 let qtyVal = parseInt(i.QTY) || 0;
                 let npbVal = parseInt(i.NPB) || 0;
                 let stokLpp = qtyVal + npbVal;
@@ -1226,7 +1366,9 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         }
 
         function calculateSelisih() {
-            const container = document.getElementById('hasilProses'); container.innerHTML = "";
+            const container = document.getElementById('hasilProses'); 
+            if(!container) return;
+            container.innerHTML = "";
             currentResults = { plus: [], minus: [], belum: [] };
             const uniqueMap = new Map();
             getFilteredData().forEach(i => { if(!uniqueMap.has(i.PLUMD)) uniqueMap.set(i.PLUMD, i); });
@@ -1262,7 +1404,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             }
 
             const rakSelect = document.getElementById('rakSelect');
-            const namaModis = rakSelect.options[rakSelect.selectedIndex] ? rakSelect.options[rakSelect.selectedIndex].text : '';
+            const namaModis = rakSelect && rakSelect.options[rakSelect.selectedIndex] ? rakSelect.options[rakSelect.selectedIndex].text : '';
 
             let text = "```\n";
             text += `HASIL SO ( ${namaModis} )\n`;
@@ -1380,7 +1522,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             const selisihVal = parseInt(rawSelisih);
 
             if (fullData.length === 0) {
-                showAlert('Data stok (JSON) belum di-load! Silakan input file JSON terlebih dahulu di menu awal.', false);
+                showAlert('Data stok belum di-load! Silakan upload Data_Stok.json terlebih dahulu.', false);
                 return;
             }
 
@@ -1436,13 +1578,15 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             }
 
             if (fullData.length === 0) {
-                showAlert('Data stok (JSON) belum di-load! Silakan input file JSON terlebih dahulu di menu awal.', false);
+                showAlert('Data stok belum di-load! Silakan upload Data_Stok.json terlebih dahulu.', false);
                 return;
             }
 
             const mapFullData = new Map();
             fullData.forEach(item => {
-                mapFullData.set(item.PLUMD, item.DESC2 || '-');
+                if (!mapFullData.has(item.PLUMD)) {
+                    mapFullData.set(item.PLUMD, item.DESC2 || '-');
+                }
             });
 
             const lines = rawText.split('\n');
@@ -1613,7 +1757,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
 
                 if (result.success) {
                     Swal.fire('Berhasil', 'Semua data di tabel berhasil di-reset!', 'success');
-                    currentUploadedData = { listPlus: [], listMinus: [], grandTotalPlus: 0, grandTotalMinus: 0 };
+                    currentUploadedData = { groupedData: {}, grandTotalSelisih: 0 };
                     document.getElementById('uploadedItemsContainer').innerHTML = `<div class="status-info">Belum ada data item yang di-upload.</div>`;
                 } else {
                     Swal.fire('Gagal', 'Gagal mereset data: ' + (result.message || 'Terjadi kesalahan server'), 'error');
@@ -1626,29 +1770,43 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         }
 
         function exportUploadedItemsToExcel() {
-            if (currentUploadedData.listPlus.length === 0 && currentUploadedData.listMinus.length === 0) {
-                Swal.fire('Peringatan', "Silakan klik tombol 'Lihat Item Database' terlebih dahulu sebelum mengekspor data!", 'warning');
+            const keys = Object.keys(currentUploadedData.groupedData);
+            if (keys.length === 0) {
+                Swal.fire('Peringatan', "Silakan klik tombol 'Refresh Isi Database' terlebih dahulu sebelum mengekspor data!", 'warning');
                 return;
             }
 
             let htmlTable = `<table id="tempExportTable" style="text-align: left;">`;
-
-            htmlTable += `
-                <thead>
-                    <tr>
-                        <th style="text-align: left;">PLU</th>
-                        <th style="text-align: left;">Deskripsi</th>
-                        <th style="text-align: left;">Harga Normal</th>
-                        <th style="text-align: left;">Selisih</th>
-                        <th style="text-align: left;">Total Harga</th>
-                    </tr>
-                </thead>
-                <tbody>`;
-
             let maxLengths = [10, 10, 15, 10, 15];
 
-            if (currentUploadedData.listPlus.length > 0) {
-                currentUploadedData.listPlus.forEach(i => {
+            keys.sort().forEach((modisKey, index) => {
+                const modisGroup = currentUploadedData.groupedData[modisKey];
+                if (modisGroup.plus.length === 0 && modisGroup.minus.length === 0) return;
+
+                if (index > 0) {
+                    htmlTable += `<tr><td colspan="5" style="text-align: left;"></td></tr>`;
+                }
+
+                htmlTable += `
+                    <thead>
+                        <tr>
+                            <th colspan="5" style="text-align: left; font-weight: bold; background-color: #34495e; color: #ffffff;">MODIS: ${modisKey}</th>
+                        </tr>
+                        <tr>
+                            <th style="text-align: left;">PLU</th>
+                            <th style="text-align: left;">Deskripsi</th>
+                            <th style="text-align: left;">Harga Normal</th>
+                            <th style="text-align: left;">Selisih</th>
+                            <th style="text-align: left;">Total Harga</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+                let plusSorted = [...modisGroup.plus].sort((a, b) => Math.abs(b.totalHarga) - Math.abs(a.totalHarga));
+                let minusSorted = [...modisGroup.minus].sort((a, b) => Math.abs(b.totalHarga) - Math.abs(a.totalHarga));
+                let allItems = plusSorted.concat(minusSorted);
+
+                allItems.forEach(i => {
                     let strHarga = String(i.harga);
                     let strSelisih = String(i.selisih);
                     let strTotal = String(i.totalHarga);
@@ -1668,67 +1826,30 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     maxLengths[3] = Math.max(maxLengths[3], strSelisih.length);
                     maxLengths[4] = Math.max(maxLengths[4], strTotal.length);
                 });
-                
-                let strGrandTotalPlus = String(currentUploadedData.grandTotalPlus);
+
                 htmlTable += `
                     <tr>
-                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">TOTAL</td>
+                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">Selisih Harga :</td>
                         <td style="text-align: left;"></td>
                         <td style="text-align: left;"></td>
                         <td style="text-align: left;"></td>
-                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">${strGrandTotalPlus}</td>
-                    </tr>`;
-            } else {
-                htmlTable += `<tr><td colspan="5" style="text-align: left;">Tidak ada item plus.</td></tr>`;
-            }
+                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">${modisGroup.totalModis}</td>
+                    </tr>
+                    </tbody>`;
+            });
 
-            htmlTable += `<tr><td colspan="5" style="text-align: left;"></td></tr>`;
-
+            let strGrandTotal = String(currentUploadedData.grandTotalSelisih);
             htmlTable += `
-                <tr>
-                    <th style="text-align: left;">PLU</th>
-                    <th style="text-align: left;">Deskripsi</th>
-                    <th style="text-align: left;">Harga Normal</th>
-                    <th style="text-align: left;">Selisih</th>
-                    <th style="text-align: left;">Total Harga</th>
-                </tr>`;
-
-            if (currentUploadedData.listMinus.length > 0) {
-                currentUploadedData.listMinus.forEach(i => {
-                    let strHarga = String(i.harga);
-                    let strSelisih = String(i.selisih);
-                    let strTotal = String(i.totalHarga);
-
-                    htmlTable += `
-                        <tr>
-                            <td style="text-align: left; mso-number-format:'\\@';">${i.plumd}</td>
-                            <td style="text-align: left; mso-number-format:'\\@';">${i.desc}</td>
-                            <td style="text-align: left; mso-number-format:'\\@';">${strHarga}</td>
-                            <td style="text-align: left; mso-number-format:'\\@';">${strSelisih}</td>
-                            <td style="text-align: left; mso-number-format:'\\@';">${strTotal}</td>
-                        </tr>`;
-
-                    maxLengths[0] = Math.max(maxLengths[0], String(i.plumd).length + 2);
-                    maxLengths[1] = Math.max(maxLengths[1], String(i.desc).length);
-                    maxLengths[2] = Math.max(maxLengths[2], strHarga.length);
-                    maxLengths[3] = Math.max(maxLengths[3], strSelisih.length);
-                    maxLengths[4] = Math.max(maxLengths[4], strTotal.length);
-                });
-
-                let strGrandTotalMinus = String(currentUploadedData.grandTotalMinus);
-                htmlTable += `
+                <tbody>
+                    <tr><td colspan="5" style="text-align: left;"></td></tr>
                     <tr>
-                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">TOTAL</td>
+                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">Grand Total Selisih Harga :</td>
                         <td style="text-align: left;"></td>
                         <td style="text-align: left;"></td>
                         <td style="text-align: left;"></td>
-                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">${strGrandTotalMinus}</td>
-                    </tr>`;
-            } else {
-                htmlTable += `<tr><td colspan="5" style="text-align: left;">Tidak ada item minus.</td></tr>`;
-            }
-
-            htmlTable += `</tbody></table>`;
+                        <td style="text-align: left; font-weight: bold; mso-number-format:'\\@';">${strGrandTotal}</td>
+                    </tr>
+                </tbody></table>`;
 
             const tempDiv = document.createElement('div');
             tempDiv.style.display = 'none';
@@ -1736,7 +1857,6 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             document.body.appendChild(tempDiv);
 
             const tableElem = document.getElementById('tempExportTable');
-            
             const worksheet = XLSX.utils.table_to_sheet(tableElem, { raw: true });
 
             worksheet['!cols'] = maxLengths.map(len => ({ wch: len + 4 }));
@@ -1782,32 +1902,45 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 if (result.success) {
                     const rows = result.data || [];
                     if (rows.length === 0) {
-                        currentUploadedData = { listPlus: [], listMinus: [], grandTotalPlus: 0, grandTotalMinus: 0 };
+                        currentUploadedData = { groupedData: {}, grandTotalSelisih: 0 };
                         container.innerHTML = `<div class="status-info">Belum ada data item yang di-upload.</div>`;
                         return;
                     }
 
                     const mapFullData = new Map();
                     fullData.forEach(item => {
-                        let price = parseFloat(item.HARGA || item.HARGA_JUAL || item.HRGJL || item.PRICE || 0);
-                        mapFullData.set(item.PLUMD, {
-                            desc: item.DESC2 || '-',
-                            harga: price
-                        });
+                        if (!mapFullData.has(item.PLUMD)) {
+                            let price = parseFloat(item.HARGA || item.HARGA_JUAL || item.HRGJL || item.PRICE || 0);
+                            let modisStr = item.NAMA_RAK || '-';
+                            mapFullData.set(item.PLUMD, {
+                                desc: item.DESC2 || '-',
+                                harga: price,
+                                modis: modisStr
+                            });
+                        }
                     });
 
-                    const listPlus = [];
-                    const listMinus = [];
+                    const groupedData = {};
 
                     rows.forEach(r => {
                         const selisih = parseInt(r.selisih) || 0;
-                        const itemInfo = mapFullData.get(r.plumd) || { desc: '-', harga: 0 };
+                        const itemInfo = mapFullData.get(r.plumd) || { desc: '-', harga: 0, modis: '-' };
                         const harga = itemInfo.harga;
                         const totalHarga = harga * selisih;
+                        const modisKey = itemInfo.modis;
+
+                        if (!groupedData[modisKey]) {
+                            groupedData[modisKey] = {
+                                plus: [],
+                                minus: [],
+                                totalModis: 0
+                            };
+                        }
 
                         const itemObj = {
                             id: r.id,
                             plumd: r.plumd,
+                            modis: modisKey,
                             desc: itemInfo.desc,
                             harga: harga,
                             selisih: selisih,
@@ -1815,66 +1948,69 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                         };
 
                         if (selisih > 0) {
-                            listPlus.push(itemObj);
+                            groupedData[modisKey].plus.push(itemObj);
                         } else if (selisih < 0) {
-                            listMinus.push(itemObj);
+                            groupedData[modisKey].minus.push(itemObj);
                         }
+
+                        groupedData[modisKey].totalModis += totalHarga;
                     });
 
-                    // Urutkan dari total nominal terbesar ke terkecil
-                    listPlus.sort((a, b) => Math.abs(b.totalHarga) - Math.abs(a.totalHarga));
-                    listMinus.sort((a, b) => Math.abs(b.totalHarga) - Math.abs(a.totalHarga));
-
-                    let grandTotalPlus = 0;
-                    let grandTotalMinus = 0;
-
+                    let grandTotalSelisih = 0;
                     let html = "";
 
-                    if (listPlus.length > 0) {
-                        html += `<div class="selisih-title">LIST ITEM PLUS (+)</div>`;
+                    const modisKeys = Object.keys(groupedData).sort();
+
+                    modisKeys.forEach(modisKey => {
+                        const group = groupedData[modisKey];
+
+                        if (group.plus.length === 0 && group.minus.length === 0) return;
+
+                        grandTotalSelisih += group.totalModis;
+
+                        group.plus.sort((a, b) => Math.abs(b.totalHarga) - Math.abs(a.totalHarga));
+                        group.minus.sort((a, b) => Math.abs(b.totalHarga) - Math.abs(a.totalHarga));
+
+                        html += `<div class="selisih-title">MODIS : ${modisKey}</div>`;
                         html += `<div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th class="text-right">Harga Normal</th><th>Selisih</th><th class="text-right">Total</th><th class="action-cell">Aksi</th></tr></thead><tbody>`;
-                        listPlus.forEach(i => {
-                            grandTotalPlus += i.totalHarga;
+
+                        group.plus.forEach(i => {
                             let formattedHarga = formatRupiah(i.harga);
                             let formattedTotal = "+" + formatRupiah(i.totalHarga);
-                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>+${i.selisih}</td><td class="text-right" style="color:#27ae60; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button></td></tr>`;
+                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td style="color:#27ae60; font-weight:bold;">+${i.selisih}</td><td class="text-right" style="color:#27ae60; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button></td></tr>`;
                         });
-                        html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL PLUS :</td><td class="text-right" style="color:#27ae60;">+${formatRupiah(grandTotalPlus)}</td><td></td></tr>`;
-                        html += `</tbody></table></div>`;
-                    } else {
-                        html += `<div class="selisih-title">LIST ITEM PLUS (+)</div><div class="status-info">Tidak ada item plus.</div>`;
-                    }
 
-                    if (listMinus.length > 0) {
-                        html += `<div class="selisih-title">LIST ITEM MINUS (-)</div>`;
-                        html += `<div class="table-container"><table><thead><tr><th>PLU</th><th>Deskripsi</th><th class="text-right">Harga Normal</th><th>Selisih</th><th class="text-right">Total</th><th class="action-cell">Aksi</th></tr></thead><tbody>`;
-                        listMinus.forEach(i => {
-                            grandTotalMinus += i.totalHarga;
+                        group.minus.forEach(i => {
                             let formattedHarga = formatRupiah(i.harga);
                             let formattedTotal = "-" + formatRupiah(Math.abs(i.totalHarga));
-                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td>${i.selisih}</td><td class="text-right" style="color:#e74c3c; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button></td></tr>`;
+                            html += `<tr data-plumd="${i.plumd}"><td>${i.plumd}</td><td>${i.desc}</td><td class="text-right">${formattedHarga}</td><td style="color:#e74c3c; font-weight:bold;">${i.selisih}</td><td class="text-right" style="color:#e74c3c; font-weight:bold;">${formattedTotal}</td><td class="action-cell"><button class="btn-action-edit" onclick="editUploadedItem(${i.id}, '${i.plumd}', ${i.selisih})">Edit</button></td></tr>`;
                         });
-                        html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">GRAND TOTAL MINUS :</td><td class="text-right" style="color:#e74c3c;">-${formatRupiah(Math.abs(grandTotalMinus))}</td><td></td></tr>`;
+
+                        let modisTotalFormatted = (group.totalModis >= 0 ? "+" : "-") + formatRupiah(Math.abs(group.totalModis));
+                        let modisColor = group.totalModis >= 0 ? "#27ae60" : "#e74c3c";
+
+                        html += `<tr style="background:#f2f2f2; font-weight:bold;"><td colspan="4" class="text-right">Selisih Harga :</td><td class="text-right" style="color:${modisColor};">${modisTotalFormatted}</td><td></td></tr>`;
                         html += `</tbody></table></div>`;
-                    } else {
-                        html += `<div class="selisih-title">LIST ITEM MINUS (-)</div><div class="status-info">Tidak ada item minus.</div>`;
+                    });
+
+                    if (html === "") {
+                        currentUploadedData = { groupedData: {}, grandTotalSelisih: 0 };
+                        container.innerHTML = `<div class="status-info">Belum ada data item yang di-upload.</div>`;
+                        return;
                     }
 
-                    let netTotal = grandTotalPlus + grandTotalMinus;
-                    let netTotalFormatted = (netTotal >= 0 ? "+" : "-") + formatRupiah(Math.abs(netTotal));
-                    let netColor = netTotal >= 0 ? "#27ae60" : "#e74c3c";
+                    let grandTotalFormatted = (grandTotalSelisih >= 0 ? "+" : "-") + formatRupiah(Math.abs(grandTotalSelisih));
+                    let grandColor = grandTotalSelisih >= 0 ? "#27ae60" : "#e74c3c";
 
                     html += `
                         <div class="summary-box">
-                            Total Selisih Plus & Minus : <span style="color: ${netColor};">${netTotalFormatted}</span>
+                            Grand Total Selisih Harga : <span style="color: ${grandColor};">${grandTotalFormatted}</span>
                         </div>
                     `;
 
                     currentUploadedData = {
-                        listPlus: listPlus,
-                        listMinus: listMinus,
-                        grandTotalPlus: grandTotalPlus,
-                        grandTotalMinus: grandTotalMinus
+                        groupedData: groupedData,
+                        grandTotalSelisih: grandTotalSelisih
                     };
 
                     container.innerHTML = html;
@@ -1883,6 +2019,75 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 }
             } catch (e) {
                 Swal.fire('Error', 'Terjadi kesalahan koneksi saat mengambil data item di-upload.', 'error');
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        async function loadEditHistory() {
+            const container = document.getElementById('historyEditContainer');
+            if (!container) return;
+            container.innerHTML = "";
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'get_edit_history');
+
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    const rows = result.data || [];
+                    if (rows.length === 0) {
+                        container.innerHTML = `<div class="status-info">Belum ada history pengeditan item.</div>`;
+                        return;
+                    }
+
+                    const mapFullData = new Map();
+                    fullData.forEach(item => {
+                        if (!mapFullData.has(item.PLUMD)) {
+                            mapFullData.set(item.PLUMD, {
+                                desc: item.DESC2 || '-',
+                                modis: item.NAMA_RAK || '-'
+                            });
+                        }
+                    });
+
+                    let html = `<div class="table-container"><table><thead><tr><th>Waktu Edit</th><th>Modis</th><th>PLU</th><th>Deskripsi</th><th>Keterangan Edit</th></tr></thead><tbody>`;
+
+                    rows.forEach(r => {
+                        const itemInfo = mapFullData.get(r.plumd) || { desc: '-', modis: '-' };
+                        const modis5Char = itemInfo.modis !== '-' ? itemInfo.modis.substring(0, 5) : '-';
+                        const sLama = parseInt(r.selisih_lama);
+                        const sBaru = parseInt(r.selisih_baru);
+
+                        const strLama = sLama > 0 ? `+${sLama}` : `${sLama}`;
+                        const strBaru = sBaru > 0 ? `+${sBaru}` : `${sBaru}`;
+
+                        const ketEdit = `selisih awal ${strLama} menjadi ${strBaru}`;
+
+                        html += `<tr>
+                            <td>${r.created_at}</td>
+                            <td>${modis5Char}</td>
+                            <td>${r.plumd}</td>
+                            <td>${itemInfo.desc}</td>
+                            <td style="font-weight:bold; color: var(--primary);">${ketEdit}</td>
+                        </tr>`;
+                    });
+
+                    html += `</tbody></table></div>`;
+                    container.innerHTML = html;
+                } else {
+                    Swal.fire('Gagal', 'Gagal mengambil history: ' + (result.message || 'Terjadi kesalahan server'), 'error');
+                }
+            } catch (e) {
+                Swal.fire('Error', 'Terjadi kesalahan koneksi saat mengambil history edit.', 'error');
             } finally {
                 loader.style.display = 'none';
             }
@@ -1929,7 +2134,7 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             }
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             const savedOfflineData = localStorage.getItem('so_full_data');
             if (savedOfflineData) {
                 const parsed = JSON.parse(savedOfflineData);
@@ -1942,6 +2147,12 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                     statusData.innerText = `Menggunakan data tersimpan ( ${fullData.length} item )`;
                     statusData.style.color = "var(--success)";
                 }
+                updateAdminStokInfo();
+            }
+
+            if (isAdminUser) {
+                await autoFetchAdminLocalStok();
+                loadUploadedItems();
             }
         });
     </script>
